@@ -66,6 +66,7 @@ class IdentityPort(Protocol):
         memory_context: str = "",
         active_skills_summary: str = "",
         urgent_mode: bool = False,
+        persona_overlay: str = "",
     ) -> str: ...
 
 
@@ -97,6 +98,7 @@ class AmadeusAgentCore:
         self.identity = identity
         self.skills = skills
         self.tool_dispatcher = tool_dispatcher
+        self.persona_overlay_provider: Optional[Callable[[], str]] = None
         # Bounded history per ECC Resource Efficiency rules
         self._history: Deque[AgentMessage] = deque(maxlen=max_session_history)
         self._avatar_subscribers: List[Callable[[AvatarEvent], Awaitable[None]]] = []
@@ -231,11 +233,17 @@ class AmadeusAgentCore:
             kw in text.lower()
             for kw in ("urgente", "rápido", "error", "bug", "producción")
         )
+        overlay = (
+            self.persona_overlay_provider()
+            if callable(self.persona_overlay_provider)
+            else ""
+        )
         system_prompt = (
             self.identity.build_system_prompt(
                 memory_context=memory_ctx,
                 active_skills_summary=skills_ctx,
                 urgent_mode=urgent,
+                persona_overlay=overlay,
             )
             if self.identity is not None
             else "You are Makise Kurisu (Amadeus System)."

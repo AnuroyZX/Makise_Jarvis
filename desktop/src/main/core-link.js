@@ -29,6 +29,16 @@ class CoreProcessLink {
       ...(fs.existsSync(distDataDir) ? { AMADEUS_DATA_DIR: distDataDir } : {}),
     };
 
+    // 0. Packaged electron app extraResources path
+    const packagedEngineExe = path.join(process.resourcesPath || "", "engine", "AmadeusKurisu.exe");
+    if (fs.existsSync(packagedEngineExe)) {
+      return {
+        cmd: packagedEngineExe,
+        args: ["--headless"],
+        env,
+      };
+    }
+
     // 1. Prefer local .venv python when running inside development workspace for instant code sync
     const venvPy = path.join(this.projectRoot, ".venv", "Scripts", "python.exe");
     if (fs.existsSync(venvPy)) {

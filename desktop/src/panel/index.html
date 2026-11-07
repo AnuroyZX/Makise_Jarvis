@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' file: http://127.0.0.1:* ws://127.0.0.1:* https://cdn.jsdelivr.net; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: data: http://127.0.0.1:*; connect-src 'self' file: http://127.0.0.1:* ws://127.0.0.1:* https://cdn.jsdelivr.net blob:;">
 <title>Amadeus Kurisu — Ventana Soft Air (Zero-Config)</title>
 <style>
   :root {
@@ -225,10 +226,22 @@
 
         <div>
           <label>Fish Audio API Key (Opcional para clonar tu muestra de KikiVoice en vivo)</label>
-          <input id="fish_audio_api_key" type="password" placeholder="Opcional: clave de fish.audio">
+          <div style="display:flex; gap:6px;">
+            <input id="fish_audio_api_key" type="password" placeholder="Opcional: clave de fish.audio">
+            <button class="secondary" style="margin-top:4px; font-size:0.8rem; white-space:nowrap; padding:6px 10px;" onclick="syncFishAgent()">🔄 Sincronizar Agente</button>
+          </div>
 
           <label>Memoria Aprendida del Usuario (`USER.md`)</label>
           <textarea id="userMdEditor"></textarea>
+
+          <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer;">
+            <input type="checkbox" id="cloud_vision_consent" style="width:auto; margin:0;">
+            <span style="font-size:0.85rem;">Privacidad: Permitir análisis visual de pantalla en la nube</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; margin-top:6px; cursor:pointer;">
+            <input type="checkbox" id="cloud_stt_consent" style="width:auto; margin:0;">
+            <span style="font-size:0.85rem;">Privacidad: Permitir reconocimiento de voz en la nube (Google STT)</span>
+          </label>
 
           <div class="btn-bar" style="margin-top:8px;">
             <button onclick="saveConfig()">💾 Guardar Claves / Avanzado</button>
@@ -243,6 +256,20 @@
 <script>
 let baseUrl = '';
 let ws = null;
+let amadeusToken = '';
+
+const _origFetch = window.fetch;
+window.fetch = function(url, init = {}) {
+  init.headers = init.headers || {};
+  if (amadeusToken) {
+    if (typeof init.headers.set === 'function') {
+      init.headers.set('X-Amadeus-Token', amadeusToken);
+    } else {
+      init.headers['X-Amadeus-Token'] = amadeusToken;
+    }
+  }
+  return _origFetch(url, init);
+};
 
 document.getElementById('chatInput').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') sendChatMessage();
@@ -284,6 +311,7 @@ async function initPanel() {
       return;
     }
     baseUrl = info.httpUrl;
+    amadeusToken = info.wsToken || '';
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
       ws.onmessage = (ev) => {
@@ -330,6 +358,10 @@ async function initPanel() {
     document.getElementById('voice_engine').value = d.voice_engine || 'qwen3_kurisu';
     document.getElementById('qwen3_speaker').value = d.qwen3_speaker || 'amadeus';
     document.getElementById('userMdEditor').value = d.user_md || '';
+    const visEl = document.getElementById('cloud_vision_consent');
+    if (visEl) visEl.checked = Boolean(d.cloud_vision_consent);
+    const sttEl = document.getElementById('cloud_stt_consent');
+    if (sttEl) sttEl.checked = Boolean(d.cloud_stt_consent);
     document.getElementById('vrmMsg').textContent = d.has_vrm
       ? '✅ Modelo avatar.vrm activo en tu escritorio.'
       : '⚠️ Aún no hay archivo .vrm cargado.';
@@ -488,6 +520,10 @@ async function saveConfig() {
     const el = document.getElementById(f);
     if (el && el.value.trim()) payload[f] = el.value.trim();
   }
+  const visEl = document.getElementById('cloud_vision_consent');
+  if (visEl) payload.cloud_vision_consent = visEl.checked;
+  const sttEl = document.getElementById('cloud_stt_consent');
+  if (sttEl) payload.cloud_stt_consent = sttEl.checked;
   const r = await fetch(`${baseUrl}/api/settings`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -500,6 +536,25 @@ async function saveConfig() {
   }
   appendChat('msg-kurisu', 'Sistema', d.warning ? `⚠️ Guardado con aviso: ${d.warning}` : '💾 Configuración y filtro DSP aplicados en vivo.');
   initPanel();
+}
+
+async function syncFishAgent() {
+  const keyInput = document.getElementById('fish_audio_api_key');
+  if (keyInput && keyInput.value.trim()) {
+    await saveConfig();
+  }
+  appendChat('msg-kurisu', 'Sistema', '🔄 Sincronizando con Agente de Fish Audio...');
+  try {
+    const r = await fetch(`${baseUrl}/api/sync_fish_agent`, { method: 'POST' });
+    const d = await r.json();
+    if (r.ok && d.status === 'ok') {
+      appendChat('msg-kurisu', 'Sistema', `✅ Agente sincronizado. Modelo de voz asignado: ${d.fish_model_id}`);
+    } else {
+      appendChat('msg-kurisu', 'Sistema', `⚠️ Aviso de sincronización: ${d.details?.status || d.error || 'Verifica la clave API'}`);
+    }
+  } catch (err) {
+    appendChat('msg-kurisu', 'Sistema', `❌ Error al sincronizar: ${err.message}`);
+  }
 }
 
 async function saveUserMd() {

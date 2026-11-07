@@ -10,6 +10,7 @@ import httpx
 
 from amadeus.config import AmadeusSettings, get_default_data_dir
 from amadeus.voice.qwen3_kurisu_tts import Qwen3KurisuTTSModule
+from voicelab.client import VoiceLabSidecarClient
 
 
 @dataclass(slots=True)
@@ -47,6 +48,11 @@ class AmadeusVoiceEngine:
             hf_token=settings.hf_token,
             http_client=http_client,
         )
+        self.voicelab = VoiceLabSidecarClient(
+            base_url="http://127.0.0.1:5005",
+            auth_token=getattr(settings, "auth_token", ""),
+            http_client=http_client,
+        )
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -81,7 +87,38 @@ class AmadeusVoiceEngine:
 
         engine = (self.settings.voice_engine or "auto").lower()
 
-        # 0. Independent Qwen3-TTS Makise Kurisu Module (`starrydark/Makise_Kurisu_Qwen3_TTS`)
+        # 0. VoiceLab Local RVC Inference (100% Offline & Private)
+        if engine in ("local_rvc", "rvc"):
+            try:
+                vl_res = await self.voicelab.synthesize(clean_text)
+                if vl_res:
+                    audio_bytes, mime = vl_res
+                    saved = self._save_audio(audio_bytes, ".wav") if save_to_disk else None
+                    return VoiceSynthesisResult(
+                        audio_bytes=audio_bytes,
+                        provider="local_rvc",
+                        mime_type=mime,
+                        saved_path=saved,
+                    )
+            except Exception:
+                pass
+
+        # 1. Fish Audio (Model 8750a78673b44b568c08e23eebcea67e — Makise Kurisu) — Top priority when key is set
+        if self.settings.fish_audio_api_key and engine in ("auto", "fish", "qwen3_kurisu"):
+            try:
+                audio_bytes, mime = await self._call_fish_audio(clean_text)
+                if audio_bytes:
+                    saved = self._save_audio(audio_bytes, ".mp3") if save_to_disk else None
+                    return VoiceSynthesisResult(
+                        audio_bytes=audio_bytes,
+                        provider="fish_audio",
+                        mime_type=mime,
+                        saved_path=saved,
+                    )
+            except Exception:
+                pass
+
+        # 2. Independent Qwen3-TTS Makise Kurisu Module (`starrydark/Makise_Kurisu_Qwen3_TTS`)
         if engine == "qwen3_kurisu" and not for_telegram_opus:
             try:
                 self.qwen3.hf_token = self.settings.hf_token
@@ -183,9 +220,10 @@ class AmadeusVoiceEngine:
 
     async def _call_fish_audio(self, text: str) -> tuple[bytes, str]:
         """
-        Calls Fish Audio TTS (`https://api.fish.audio/v1/tts`) using either:
-        1. An uploaded KikiVoice reference audio (`kikivoice_ref.mp3`) for zero-shot cloning, or
-        2. Makise Kurisu's trained model ID (`8750a78673b44b568c08e23eebcea67e`).
+        Calls Fish Audio TTS (`https://api.fish.audio/v1/tts`) using:
+        1. The Spanish Makise Kurisu voice ID (`c54d540391394e648df1ab99072f5247`) configured in
+           the user's Fish Audio Agent (`78fc4363cbf14098a7a40e68e361928a`), or
+        2. An uploaded KikiVoice reference audio (`kikivoice_ref.mp3`) when `fish_model_id` is empty.
         """
         client = await self._get_client()
         headers = {
@@ -209,11 +247,53 @@ class AmadeusVoiceEngine:
             ]
         else:
             payload["reference_id"] = (
-                self.settings.fish_model_id or "8750a78673b44b568c08e23eebcea67e"
+                self.settings.fish_model_id or "c54d540391394e648df1ab99072f5247"
             )
         resp = await client.post("https://api.fish.audio/v1/tts", headers=headers, json=payload)
         resp.raise_for_status()
         return resp.content, "audio/mpeg"
+
+    async def sync_fish_agent_config(self) -> dict:
+        """
+        Reads or updates the Fish Audio Agent (`GET /v1/agent/agents/{agent_id}/config`) per
+        `https://docs.fish.audio/agents/overview`, syncing its `voice_id` into local settings.
+        """
+        agent_id = (self.settings.fish_agent_id or "78fc4363cbf14098a7a40e68e361928a").strip()
+        if not self.settings.fish_audio_api_key or not agent_id:
+            return {"status": "missing_key_or_agent_id"}
+        client = await self._get_client()
+        headers = {"Authorization": f"Bearer {self.settings.fish_audio_api_key}"}
+        resp = await client.get(
+            f"https://api.fish.audio/v1/agent/agents/{agent_id}/config",
+            headers=headers,
+        )
+        resp.raise_for_status()
+        cfg_data = resp.json()
+        voice_id = (cfg_data.get("voice") or {}).get("voice_id")
+        if voice_id:
+            self.settings.fish_model_id = str(voice_id)
+        return cfg_data
+
+    async def create_fish_agent_session(self) -> dict:
+        """
+        Creates an authenticated Fish Audio Agent conversational session (`POST /v1/agent/sessions`)
+        returning `{session_id, livekit_url, token, expires_at}` without exposing the master API key.
+        """
+        agent_id = (self.settings.fish_agent_id or "78fc4363cbf14098a7a40e68e361928a").strip()
+        if not self.settings.fish_audio_api_key or not agent_id:
+            return {"error": "missing_fish_credentials"}
+        client = await self._get_client()
+        headers = {
+            "Authorization": f"Bearer {self.settings.fish_audio_api_key}",
+            "Content-Type": "application/json",
+        }
+        resp = await client.post(
+            "https://api.fish.audio/v1/agent/sessions",
+            headers=headers,
+            json={"agent_id": agent_id},
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     async def _call_gemini_kurisu_tts(self, text: str) -> tuple[bytes, str]:
         """
@@ -223,8 +303,9 @@ class AmadeusVoiceEngine:
         client = await self._get_client()
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-flash-preview-tts:generateContent?key={self.settings.gemini_api_key}"
+            "gemini-2.5-flash-preview-tts:generateContent"
         )
+        headers = {"x-goog-api-key": self.settings.gemini_api_key}
         style_prompt = (
             "Speak in a young 18-year-old Japanese anime female voice actress tone "
             "(like Makise Kurisu / Asami Imai: calm, smooth, slightly breathy, intelligent, "
@@ -243,7 +324,7 @@ class AmadeusVoiceEngine:
                 },
             },
         }
-        resp = await client.post(url, json=payload)
+        resp = await client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         inline = resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]
         pcm_bytes = base64.b64decode(inline["data"])

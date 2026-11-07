@@ -255,22 +255,23 @@ class WakeWordWhisperListener:
         if not pcm_bytes:
             return ""
 
-        # 1. Fast Zero-Key Spanish STT via SpeechRecognition (0 MB VRAM, ~0.4s latency)
-        def _google_stt() -> str:
-            try:
-                import speech_recognition as sr
+        # 1. Cloud STT via Google Speech (requires user consent per ECC AgentShield)
+        if self.settings.cloud_stt_consent:
+            def _google_stt() -> str:
+                try:
+                    import speech_recognition as sr
 
-                rec = sr.Recognizer()
-                audio_data = sr.AudioData(pcm_bytes, 16000, 2)
-                return str(rec.recognize_google(audio_data, language="es-ES")).strip()
-            except Exception:
-                return ""
+                    rec = sr.Recognizer()
+                    audio_data = sr.AudioData(pcm_bytes, 16000, 2)
+                    return str(rec.recognize_google(audio_data, language="es-ES")).strip()
+                except Exception:
+                    return ""
 
-        text = await asyncio.to_thread(_google_stt)
-        if text:
-            return text
+            text = await asyncio.to_thread(_google_stt)
+            if text:
+                return text
 
-        # 2. Offline fallback via faster-whisper
+        # 2. Local offline STT via faster-whisper (private, no audio sent to cloud)
         return await self.transcribe_pcm_bytes(pcm_bytes)
 
     def unload_idle_models(self, force: bool = False) -> bool:

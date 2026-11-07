@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import List
@@ -17,6 +19,8 @@ def classify_api_key(raw_key: str) -> str:
         return "anthropic_api_key"
     if key.startswith("sk-or-"):
         return "openrouter_api_key"
+    if key.startswith("sk-fish-"):
+        return "fish_audio_api_key"
     if key.startswith("sk-"):
         return "openai_api_key"
     if key.startswith("AIza") or key.startswith("AQ."):
@@ -27,17 +31,29 @@ def classify_api_key(raw_key: str) -> str:
 
 
 def get_default_data_dir() -> Path:
-    """Resolve portable data directory dynamically across any Windows PC."""
+    """Resolve portable data directory dynamically across any Windows PC without relying on transient cwd."""
     custom_dir = os.environ.get("AMADEUS_DATA_DIR")
     if custom_dir:
         path = Path(custom_dir)
-    else:
-        # If a local 'portable_data' folder exists next to the executable/project, use it (100% USB/folder portable)
-        local_portable = Path.cwd() / "data"
-        if local_portable.exists() or not os.environ.get("APPDATA"):
-            path = local_portable
-        else:
+    elif getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        portable_candidate = exe_dir / "data"
+        if portable_candidate.exists() or os.environ.get("AMADEUS_PORTABLE"):
+            path = portable_candidate
+        elif os.environ.get("APPDATA"):
             path = Path(os.environ["APPDATA"]) / "AmadeusKurisu"
+        else:
+            path = Path.home() / ".amadeus_kurisu"
+    else:
+        # Development mode: locate project root relative to this file
+        project_root = Path(__file__).resolve().parent.parent.parent
+        dev_data = project_root / "data"
+        if dev_data.exists():
+            path = dev_data
+        elif os.environ.get("APPDATA"):
+            path = Path(os.environ["APPDATA"]) / "AmadeusKurisu"
+        else:
+            path = Path.home() / ".amadeus_kurisu"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -82,12 +98,13 @@ class AmadeusSettings:
     enable_whatsapp_plugin: bool = False
     whatsapp_bridge_url: str = "http://127.0.0.1:3001"
 
-    # Module 9: Voice (Qwen3-TTS Makise Kurisu + Fish Audio + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
-    voice_engine: str = "auto"  # "auto" | "qwen3_kurisu" | "fish" | "gemini_kurisu" | "elevenlabs" | "edge"
+    # Module 9: Voice (Fish Audio Agent + Qwen3-TTS + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
+    voice_engine: str = "auto"  # "auto" | "fish" | "qwen3_kurisu" | "gemini_kurisu" | "elevenlabs" | "edge"
     qwen3_speaker: str = "amadeus"  # "amadeus" | "kurisu" | "phone" (starrydark/Makise_Kurisu_Qwen3_TTS)
     hf_token: str = ""  # Optional free HuggingFace token (hf_...) for higher ZeroGPU quota on Qwen3-TTS
     fish_audio_api_key: str = ""
-    fish_model_id: str = "8750a78673b44b568c08e23eebcea67e"  # Makise Kurisu (牧濑红莉栖) on Fish Audio
+    fish_agent_id: str = "78fc4363cbf14098a7a40e68e361928a"  # Makise Kurisu (Amadeus) Agent on Fish Audio
+    fish_model_id: str = "c54d540391394e648df1ab99072f5247"  # Kurisu Makise ['es'] voice from Agent 78fc4363cbf14098a7a40e68e361928a
     gemini_tts_voice: str = "Leda"  # Young, calm, smooth anime-timbre voice on Gemini 2.5 Flash TTS
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "cgSgspJ2msm6clMCkdW9"  # Young cute female voice (never mature Sarah)
@@ -100,13 +117,18 @@ class AmadeusSettings:
     active_profile: str = "kurisu_amadeus"  # "kurisu_amadeus" | "kurisu_studio" | "fi_spirit"
     dsp_preset: str = "amadeus_screen"  # "clean" | "amadeus_screen" | "fi_spirit" | "phone"
     bubbles_mode: str = "all"  # "off" | "detail_only" | "all"
-    wake_word_enabled: bool = True
+    wake_word_enabled: bool = False  # Off by default to avoid unintended mic capture
     wake_word_phrase: str = "oye kurisu"
     allowed_fs_roots: List[str] = field(default_factory=list)
     excluded_screen_apps: List[str] = field(
         default_factory=lambda: ["keepass", "1password", "bitwarden", "authy", "banco", "bank"]
     )
     habit_suggestions_enabled: bool = True
+
+    # Security & Privacy Consents (S1, S6)
+    auth_token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
+    cloud_vision_consent: bool = False
+    cloud_stt_consent: bool = False
 
     # General & Onboarding
     user_display_name: str = "Okabe"
@@ -150,6 +172,9 @@ class AmadeusSettings:
         # Migrate old mature 'Sarah' ElevenLabs voice ID to young voice
         if filtered.get("elevenlabs_voice_id") == "EXAVITQu4vr4xnSDxMaL":
             filtered["elevenlabs_voice_id"] = "cgSgspJ2msm6clMCkdW9"
+        # Migrate Japanese Fish Audio model ID to the Spanish Kurisu Makise voice from Agent 78fc4363cbf14098a7a40e68e361928a
+        if filtered.get("fish_model_id") == "8750a78673b44b568c08e23eebcea67e":
+            filtered["fish_model_id"] = "c54d540391394e648df1ab99072f5247"
         return cls(**filtered)
 
     def save(self, data_dir: Path | None = None) -> Path:

@@ -271,9 +271,8 @@ class MultiBrainRouter:
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": contents,
         }
-        resp = await client.post(
-            url, params={"key": self.settings.gemini_api_key}, json=payload
-        )
+        headers = {"x-goog-api-key": self.settings.gemini_api_key}
+        resp = await client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]

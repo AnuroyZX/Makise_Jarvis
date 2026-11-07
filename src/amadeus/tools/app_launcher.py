@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import difflib
 import os
+from pathlib import Path
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, List, Optional
 
 
@@ -137,9 +139,17 @@ class WindowsAppLauncher:
                 for syn in synonyms:
                     if syn in self._catalog:
                         return self._catalog[syn]
+
+        # 3. Match whole words to prevent accidental substring false positives
         for key, app in self._catalog.items():
-            if q in key:
+            if re.search(rf"\b{re.escape(q)}\b", key):
                 return app
+
+        # 4. Fuzzy match using difflib
+        matches = difflib.get_close_matches(q, list(self._catalog.keys()), n=1, cutoff=0.72)
+        if matches:
+            return self._catalog[matches[0]]
+
         return None
 
     def launch(self, app_query: str, dry_run: bool = False) -> str:

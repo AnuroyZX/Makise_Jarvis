@@ -159,6 +159,14 @@ class ScreenContextManager:
         open_wins = self.list_visible_windows(max_items=6)
         win_summary = f"Ventana principal: '{info.window_title or info.process_name}'. Otras ventanas visibles: {', '.join(open_wins[:5])}."
 
+        # Privacy Shield: Require explicit consent before transmitting desktop pixels to cloud vision APIs
+        if not self.settings.cloud_vision_consent:
+            return (
+                f"[emotion:analytical] [Privacidad] El análisis visual en la nube está desactivado por defecto. "
+                f"Para enviar capturas a Gemini/IA, activa 'Consentimiento de Visión' en la configuración.\n"
+                f"Estado local: {win_summary}"
+            )
+
         try:
             jpeg_bytes = self.capture_screen_jpeg_bytes()
         except PermissionError as exc:
@@ -171,7 +179,7 @@ class ScreenContextManager:
 
         if self.settings.gemini_api_key:
             try:
-                model = self.settings.foreground_model_gemini or "gemini-2.5-flash"
+                model = self.settings.foreground_model_gemini or "gemini-3-flash-preview"
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 payload = {
                     "contents": [
@@ -184,9 +192,8 @@ class ScreenContextManager:
                         }
                     ]
                 }
-                resp = await client.post(
-                    url, params={"key": self.settings.gemini_api_key}, json=payload
-                )
+                headers = {"x-goog-api-key": self.settings.gemini_api_key}
+                resp = await client.post(url, headers=headers, json=payload)
                 resp.raise_for_status()
                 data = resp.json()
                 return data["candidates"][0]["content"]["parts"][0]["text"]

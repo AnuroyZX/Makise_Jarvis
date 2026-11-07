@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' file: http://127.0.0.1:* ws://127.0.0.1:* https://cdn.jsdelivr.net; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: data: http://127.0.0.1:*; connect-src 'self' file: http://127.0.0.1:* ws://127.0.0.1:* https://cdn.jsdelivr.net blob:;">
 <title>Amadeus Avatar Overlay</title>
 <style>
   :root {
@@ -94,7 +95,6 @@
     white-space: nowrap; align-items: center;
   }
   .btn-drag {
-    -webkit-app-region: drag;
     cursor: grab;
     background: rgba(255, 255, 255, 0.88);
     color: var(--sky-600);
@@ -103,6 +103,9 @@
     border-radius: 8px;
     font-weight: 600;
     font-size: 0.78rem;
+  }
+  .btn-drag:active {
+    cursor: grabbing;
   }
   #miniDock button {
     -webkit-app-region: no-drag;
@@ -161,7 +164,7 @@
 
   <!-- Soft Air Mini-Dock under Kurisu -->
   <div id="miniDock" class="aero-glass">
-    <span class="btn-drag" title="Arrastra aquí para mover a Kurisu">✥ Mover</span>
+    <span id="dragPill" class="btn-drag" onmousedown="startAvatarDrag(event)" title="Arrastra aquí para mover a Kurisu">✥ Mover</span>
     <button id="micBtn" class="btn-air" onclick="toggleVoiceMic()" title="Hablar por micrófono">🎙️ Micro</button>
     <button class="btn-air" onclick="toggleQuickBar()" title="Ctrl+Alt+Espacio">💬 Hablar</button>
     <button class="btn-air" onclick="triggerScreenLook()" title="Ctrl+Alt+V">👁️ Pantalla</button>
@@ -620,9 +623,42 @@ async function playNextSentenceChunk() {
 
 // Passive Overlay Click-Through: let all clicks pass through transparent areas & 3D body to Valorant/apps behind,
 // and only capture mouse events when hovering directly over the interactive UI bars.
+let isDraggingWindow = false;
+window.startAvatarDrag = (ev) => {
+  if (ev && ev.button !== 0) return;
+  isDraggingWindow = true;
+  if (window.amadeusDesktop && window.amadeusDesktop.startWindowDrag) {
+    window.amadeusDesktop.startWindowDrag();
+  }
+};
+window.addEventListener('mouseup', () => {
+  if (isDraggingWindow) {
+    isDraggingWindow = false;
+    if (window.amadeusDesktop && window.amadeusDesktop.stopWindowDrag) {
+      window.amadeusDesktop.stopWindowDrag();
+    }
+  }
+});
+window.addEventListener('blur', () => {
+  if (isDraggingWindow) {
+    isDraggingWindow = false;
+    if (window.amadeusDesktop && window.amadeusDesktop.stopWindowDrag) {
+      window.amadeusDesktop.stopWindowDrag();
+    }
+  }
+});
+document.addEventListener('mouseleave', () => {
+  if (isDraggingWindow) {
+    isDraggingWindow = false;
+    if (window.amadeusDesktop && window.amadeusDesktop.stopWindowDrag) {
+      window.amadeusDesktop.stopWindowDrag();
+    }
+  }
+});
+
 let lastIgnoreState = true;
 window.addEventListener('mousemove', (e) => {
-  if (!window.amadeusDesktop) return;
+  if (!window.amadeusDesktop || isDraggingWindow) return;
   const overInteractive = Boolean(
     e.target && e.target.closest && e.target.closest('#miniDock, #quickInputBar, #confirmCard')
   );
@@ -693,7 +729,7 @@ async function initConnection() {
     return;
   }
   httpUrl = info.httpUrl;
-  loadVrmModel(`${httpUrl}/api/avatar.vrm?t=${Date.now()}`);
+  loadVrmModel(`${httpUrl}/api/avatar.vrm?token=${encodeURIComponent(info.wsToken)}&t=${Date.now()}`);
 
   ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
   ws.onmessage = (ev) => {
@@ -705,7 +741,7 @@ async function initConnection() {
       if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
       if (msg.bubbles_mode) bubblesMode = msg.bubbles_mode;
     } else if (msg.type === 'reload_vrm') {
-      loadVrmModel(`${httpUrl}/api/avatar.vrm?t=${Date.now()}`);
+      loadVrmModel(`${httpUrl}/api/avatar.vrm?token=${encodeURIComponent(info.wsToken)}&t=${Date.now()}`);
     } else if (msg.type === 'avatar_pose') {
       applyEmotion(msg.emotion);
       triggerGesture(msg.gesture);

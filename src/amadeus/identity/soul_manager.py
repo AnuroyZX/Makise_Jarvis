@@ -101,14 +101,23 @@ class SoulManager:
         memory_context: str = "",
         active_skills_summary: str = "",
         urgent_mode: bool = False,
+        persona_overlay: str = "",
     ) -> str:
-        """Assemble the full system prompt combining SOUL.md + USER.md + Memory + Skills."""
+        """Assemble the full system prompt combining SOUL.md + USER.md + Memory + Skills + Active Persona Overlay."""
         sections = [
             self.read_soul(),
             "---",
             "## PERFIL DEL USUARIO (USER.md)",
             self.read_user_profile(),
         ]
+        if persona_overlay.strip():
+            sections.extend(
+                [
+                    "---",
+                    "## DIRECTIVA DE PERSONALIDAD ACTIVA",
+                    persona_overlay.strip(),
+                ]
+            )
         if active_skills_summary.strip():
             sections.extend(
                 [

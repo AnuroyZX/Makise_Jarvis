@@ -178,19 +178,23 @@ async def test_zero_key_free_brain_and_vrm_upload_endpoint(tmp_path: Path) -> No
         assert reply.emotion == EmotionState.SMUG
         assert "modelo gratuito" in reply.content
 
-        # Test .VRM upload and download endpoints
+        # Test .VRM upload and download endpoints with token authorization
         ui_url = await system.web_ui.start()
+        token = system.web_ui.auth_token
         fake_vrm_bytes = b"glTF\x02\x00\x00\x00FAKE_VRM_BINARY_MODEL_DATA"
         async with httpx.AsyncClient() as local_http:
             up_resp = await local_http.post(
                 f"{ui_url}/api/upload_vrm",
                 content=fake_vrm_bytes,
-                headers={"Content-Type": "application/octet-stream"},
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "X-Amadeus-Token": token,
+                },
             )
             assert up_resp.status_code == 200
             assert (tmp_path / "avatar.vrm").exists()
 
-            dl_resp = await local_http.get(f"{ui_url}/api/avatar.vrm")
+            dl_resp = await local_http.get(f"{ui_url}/api/avatar.vrm?token={token}")
             assert dl_resp.status_code == 200
             assert dl_resp.content == fake_vrm_bytes
 

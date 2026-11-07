@@ -222,7 +222,8 @@ async def test_full_9_module_system_ephemeral_ui_and_eco_ram(tmp_path: Path) -> 
         ui_url = await system.web_ui.start()
         assert system.web_ui.is_running is True
 
-        async with httpx.AsyncClient() as local_http:
+        token = system.web_ui.auth_token
+        async with httpx.AsyncClient(headers={"X-Amadeus-Token": token}) as local_http:
             st_resp = await local_http.get(f"{ui_url}/api/state")
             assert st_resp.status_code == 200
             st_data = st_resp.json()

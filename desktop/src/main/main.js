@@ -95,6 +95,10 @@ function createAvatarWindow() {
   avatarWin.webContents.on("console-message", (_ev, _level, msg, line) => {
     console.log(`[AVATAR-RENDERER:${line}] ${msg}`);
   });
+  avatarWin.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  avatarWin.webContents.on("will-navigate", (event, navUrl) => {
+    if (!navUrl.startsWith("file://")) event.preventDefault();
+  });
   avatarWin.loadFile(path.join(__dirname, "..", "avatar", "index.html"));
   return avatarWin;
 }
@@ -121,6 +125,10 @@ function openSettingsPanel() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+  panelWin.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  panelWin.webContents.on("will-navigate", (event, navUrl) => {
+    if (!navUrl.startsWith("file://")) event.preventDefault();
   });
   panelWin.loadFile(path.join(__dirname, "..", "panel", "index.html"));
   panelWin.on("closed", () => {
@@ -198,8 +206,11 @@ function registerShortcuts() {
   globalShortcut.register("CommandOrControl+Alt+E", () => toggleEcoMode());
 }
 
+let dragTimer = null;
+
 ipcMain.handle("amadeus:get-connection-info", () => connectionInfo);
 ipcMain.on("amadeus:set-ignore-mouse", (_ev, ignore) => {
+  if (dragTimer) return; // Keep capturing mouse while dragging window
   if (avatarWin && !avatarWin.isDestroyed()) {
     avatarWin.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
   }
@@ -208,6 +219,45 @@ ipcMain.on("amadeus:set-focusable", (_ev, focusable) => {
   if (avatarWin && !avatarWin.isDestroyed()) {
     avatarWin.setFocusable(Boolean(focusable));
     if (focusable) avatarWin.focus();
+  }
+});
+let dragSafetyTimeout = null;
+
+ipcMain.on("amadeus:start-drag", () => {
+  if (!avatarWin || avatarWin.isDestroyed()) return;
+  avatarWin.setIgnoreMouseEvents(false);
+  const startCursor = screen.getCursorScreenPoint();
+  const [startX, startY] = avatarWin.getPosition();
+  if (dragTimer) clearInterval(dragTimer);
+  if (dragSafetyTimeout) clearTimeout(dragSafetyTimeout);
+  dragTimer = setInterval(() => {
+    if (!avatarWin || avatarWin.isDestroyed()) {
+      clearInterval(dragTimer);
+      dragTimer = null;
+      return;
+    }
+    const cur = screen.getCursorScreenPoint();
+    avatarWin.setPosition(
+      startX + (cur.x - startCursor.x),
+      startY + (cur.y - startCursor.y)
+    );
+  }, 16);
+  // Failsafe watchdog to avoid infinite drag if mouseup is missed
+  dragSafetyTimeout = setTimeout(() => {
+    if (dragTimer) {
+      clearInterval(dragTimer);
+      dragTimer = null;
+    }
+  }, 15000);
+});
+ipcMain.on("amadeus:stop-drag", () => {
+  if (dragTimer) {
+    clearInterval(dragTimer);
+    dragTimer = null;
+  }
+  if (dragSafetyTimeout) {
+    clearTimeout(dragSafetyTimeout);
+    dragSafetyTimeout = null;
   }
 });
 ipcMain.on("amadeus:set-dodge-enabled", () => {});

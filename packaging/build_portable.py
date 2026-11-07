@@ -55,6 +55,13 @@ def build_portable_distribution() -> int:
     else:
         portable_data.mkdir(parents=True, exist_ok=True)
 
+    if (project_root / "models" / "rvc").exists():
+        target_models = bundle_dir / "models" / "rvc"
+        target_models.mkdir(parents=True, exist_ok=True)
+        for f in (project_root / "models" / "rvc").glob("*.*"):
+            shutil.copy2(f, target_models / f.name)
+        print("Modelos RVC incluidos en el paquete.")
+
     # Create quick-launch batch files for Desktop Overlay (Electron) and Web Mode
     launcher_bat = bundle_dir / "Iniciar_Amadeus_Kurisu.bat"
     launcher_bat.write_text(

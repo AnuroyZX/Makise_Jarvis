@@ -17,4 +17,8 @@ description: "ECC Clean Code & Modular Engineering Standards for Python & Window
    - Never hardcode user-specific paths (`C:\Users\...`). Always resolve paths dynamically via `os.environ`, `pathlib.Path.home()`, `%APPDATA%`, or the `EnvironmentScanner` so the compiled binary runs identically on any Windows PC.
 
 4. **Explicit Error Handling & Graceful Degradation**:
-   - Never use bare `except:`. Catch specific exceptions, log structured context, and provide deterministic fallbacks (e.g., `HonchoCloudAdapter` -> `LocalSQLiteMemory`, `ElevenLabs` -> `Edge-TTS`).
+   - Never use bare `except:` or silent `except Exception: pass`. Catch specific exceptions, log structured context, and provide deterministic fallbacks (e.g., `HonchoCloudAdapter` -> `LocalSQLiteMemory`, `FishAudio` -> `Edge-TTS`).
+   - Log warning/error details with context so silent failures in background loops (like WebSockets or async tasks) can be diagnosed quickly.
+
+5. **Observable Fallbacks & User Transparency**:
+   - When a primary service or model falls back (e.g. cloud TTS 429/quota exceeded falling back to Edge-TTS, or vision provider failure), explicitly surface the active provider or fallback reason to the UI / metadata so the user knows what is happening.

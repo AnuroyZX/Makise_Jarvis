@@ -255,9 +255,12 @@ class AmadeusToolDispatcher:
                 return self.file_ops.fs_create_folder(str(args.get("path", ""))), None
 
             if name == "fs_create_file":
+                overwrite = bool(args.get("overwrite", False))
                 return (
                     self.file_ops.fs_create_file(
-                        str(args.get("path", "")), str(args.get("content", ""))
+                        str(args.get("path", "")),
+                        str(args.get("content", "")),
+                        overwrite=overwrite,
                     ),
                     None,
                 )

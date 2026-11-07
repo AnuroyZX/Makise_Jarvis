@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import secrets
 from typing import TYPE_CHECKING, Any, Dict, Optional, Set
 import urllib.parse
@@ -38,6 +39,7 @@ class AmadeusWebSocketBridge:
         self._server: Any = None
         self._clients: Set[Any] = set()
         self._current_turn_id: Optional[str] = None
+        self._current_turn_task: Optional[asyncio.Task] = None
         self._cancel_current_turn: bool = False
         self.speaker_playing: bool = False
 
@@ -84,6 +86,9 @@ class AmadeusWebSocketBridge:
         """Cancel any in-flight sentence TTS synthesis and notify connected UI clients."""
         self._cancel_current_turn = True
         self.speaker_playing = False
+        if self._current_turn_task is not None and not self._current_turn_task.done():
+            self._current_turn_task.cancel()
+            self._current_turn_task = None
 
     async def broadcast(self, payload: Dict[str, Any]) -> None:
         if not self._clients:
@@ -143,8 +148,8 @@ class AmadeusWebSocketBridge:
                     raw_msg = raw_msg.decode("utf-8", errors="replace")
                 data = json.loads(raw_msg)
                 await self._handle_client_message(data)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger("amadeus.ws_bridge").debug("WebSocket client disconnected or error: %s", exc)
         finally:
             self._clients.discard(ws)
 
@@ -215,7 +220,9 @@ class AmadeusWebSocketBridge:
             text = str(data.get("text") or "").strip()
             if not text:
                 return
-            await self.process_and_stream_turn(text)
+            # Non-blocking turn execution so subsequent messages (e.g. interrupt) are processed concurrently
+            self.interrupt_current_turn()
+            self._current_turn_task = asyncio.create_task(self.process_and_stream_turn(text))
 
     async def _run_ptt_mic_turn(self) -> None:
         """Record user speech from Windows microphone and stream Kurisu's reply."""
@@ -309,25 +316,33 @@ class AmadeusWebSocketBridge:
         self._current_turn_id = turn_id
         self._cancel_current_turn = False
 
-        self.system.governor.switch_mode(PowerMode.FOREGROUND_ACTIVE)
-        await self.broadcast({"type": "listening", "state": "thinking", "turn_id": turn_id})
+        try:
+            self.system.governor.switch_mode(PowerMode.FOREGROUND_ACTIVE)
+            await self.broadcast({"type": "listening", "state": "thinking", "turn_id": turn_id})
 
-        reply_msg, _ = await self.system.pc_gateway.send_local_prompt(
-            user_text, synthesize_voice=False
-        )
-        if reply_msg.metadata and reply_msg.metadata.get("pending_op_id"):
-            await self.broadcast(
-                {
-                    "type": "confirm_request",
-                    "id": reply_msg.metadata["pending_op_id"],
-                    "summary": reply_msg.metadata.get("pending_summary", ""),
-                }
+            reply_msg, _ = await self.system.pc_gateway.send_local_prompt(
+                user_text, synthesize_voice=False
             )
-        await self._stream_dual_reply_text(
-            reply_msg.content,
-            default_emotion=reply_msg.emotion.value,
-            turn_id=turn_id,
-        )
+            if reply_msg.metadata and reply_msg.metadata.get("pending_op_id"):
+                await self.broadcast(
+                    {
+                        "type": "confirm_request",
+                        "id": reply_msg.metadata["pending_op_id"],
+                        "summary": reply_msg.metadata.get("pending_summary", ""),
+                    }
+                )
+            await self._stream_dual_reply_text(
+                reply_msg.content,
+                default_emotion=reply_msg.emotion.value,
+                turn_id=turn_id,
+            )
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logging.getLogger("amadeus.ws_bridge").warning("Turn %s error: %s", turn_id, exc)
+        finally:
+            if self._current_turn_id == turn_id:
+                self._current_turn_id = None
 
     async def _stream_dual_reply_text(
         self,
@@ -345,23 +360,43 @@ class AmadeusWebSocketBridge:
         sentences = dual.split_spoken_sentences()
         await self.broadcast({"type": "listening", "state": "speaking", "turn_id": turn_id})
 
+        prefetch_task: Optional[asyncio.Task] = None
         for idx, sentence in enumerate(sentences):
             if self._cancel_current_turn or self._current_turn_id != turn_id:
+                if prefetch_task is not None and not prefetch_task.done():
+                    prefetch_task.cancel()
                 break
 
             audio_b64 = ""
             mime = "audio/mpeg"
             voice_provider = "disabled"
             if self.system.settings.voice_replies_enabled:
-                synth = await self.system.voice.synthesize(
-                    sentence, for_telegram_opus=False, save_to_disk=False
-                )
+                if prefetch_task is not None:
+                    synth = await prefetch_task
+                else:
+                    synth = await self.system.voice.synthesize(
+                        sentence, for_telegram_opus=False, save_to_disk=False
+                    )
+
+                # Prefetch next sentence TTS concurrently to eliminate latency between phrases
+                if idx + 1 < len(sentences) and not self._cancel_current_turn:
+                    next_sent = sentences[idx + 1]
+                    prefetch_task = asyncio.create_task(
+                        self.system.voice.synthesize(
+                            next_sent, for_telegram_opus=False, save_to_disk=False
+                        )
+                    )
+                else:
+                    prefetch_task = None
+
                 voice_provider = synth.provider
                 if synth.audio_bytes:
                     audio_b64 = base64.b64encode(synth.audio_bytes).decode("ascii")
                     mime = synth.mime_type
 
             if self._cancel_current_turn or self._current_turn_id != turn_id:
+                if prefetch_task is not None and not prefetch_task.done():
+                    prefetch_task.cancel()
                 break
 
             await self.broadcast(

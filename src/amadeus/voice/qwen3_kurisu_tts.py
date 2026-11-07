@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import io
 import json
 import re
+import time
 from typing import Literal, Optional
 import wave
 import httpx
@@ -55,6 +56,7 @@ class Qwen3KurisuTTSModule:
         self.model_id = model_id
         self.use_local_checkpoint = use_local_checkpoint
         self.hf_token = hf_token.strip()
+        self._circuit_broken_until: float = 0.0
         self._external_client = http_client is not None
         self._client = http_client
         self._local_model = None
@@ -101,6 +103,11 @@ class Qwen3KurisuTTSModule:
                 speaker=self.speaker,
                 language=self.language,
                 backend="none",
+            )
+
+        if not self.use_local_checkpoint and time.monotonic() < self._circuit_broken_until:
+            raise RuntimeError(
+                f"Qwen3-TTS cooldown active (reintentando en {int(self._circuit_broken_until - time.monotonic())}s)"
             )
 
         active_speaker = (speaker or self.speaker).lower().strip()
@@ -158,7 +165,11 @@ class Qwen3KurisuTTSModule:
                     return p.read_bytes()
                 raise RuntimeError("Qwen3-TTS Space did not return a local audio file.")
 
-            return await asyncio.to_thread(_call_gradio_space)
+            try:
+                return await asyncio.to_thread(_call_gradio_space)
+            except Exception:
+                self._circuit_broken_until = time.monotonic() + 300.0
+                raise
 
         client = await self._get_client()
         call_url = f"{self.space_url}/gradio_api/call/generate_speech"

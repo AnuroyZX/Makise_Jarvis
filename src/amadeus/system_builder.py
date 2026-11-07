@@ -10,6 +10,7 @@ from amadeus.channels.pc_and_whatsapp import PCInteractionGateway, WhatsAppBridg
 from amadeus.channels.telegram_gateway import TelegramGateway
 from amadeus.config import AmadeusSettings, get_default_data_dir
 from amadeus.house.environment_scanner import EnvironmentScanner, HostProfile
+from amadeus.house.logging_setup import setup_logging
 from amadeus.house.onboarding_ui import EphemeralOnboardingServer
 from amadeus.house.resource_governor import PowerMode, ResourceGovernor
 from amadeus.house.ws_bridge import AmadeusWebSocketBridge
@@ -48,6 +49,7 @@ class AmadeusSystem:
         http_client: Optional[httpx.AsyncClient] = None,
     ) -> None:
         self.data_dir = data_dir or get_default_data_dir()
+        self.logger = setup_logging(self.data_dir)
         self.settings = AmadeusSettings.load(self.data_dir)
 
         # Module 1: Casa
@@ -90,6 +92,9 @@ class AmadeusSystem:
             memory=self.memory,
             identity=self.identity,
             skills=self.skills,
+        )
+        self.core.persona_overlay_provider = lambda: (
+            self.profiles.get_profile(self.settings.active_profile).persona_overlay
         )
 
         # Module 7: Herramientas + Archivos Seguros (F3) + Contexto de Pantalla (F3)

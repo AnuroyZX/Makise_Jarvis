@@ -28,6 +28,11 @@ FORBIDDEN_SYSTEM_PREFIXES = (
     "c:\\programdata",
 )
 
+DANGEROUS_EXTENSIONS = {
+    ".exe", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".msi", ".reg",
+    ".wsf", ".scr", ".com", ".pif", ".cpl", ".hta", ".jar", ".lnk",
+}
+
 
 @dataclass(slots=True)
 class PendingFileOperation:
@@ -258,8 +263,12 @@ class SafeFileManager:
         self._record_journal(uuid.uuid4().hex[:8], "create_folder", str(target), "")
         return f"Carpeta creada: {target}"
 
-    def fs_create_file(self, file_path: str | Path, content: str = "") -> str:
+    def fs_create_file(self, file_path: str | Path, content: str = "", overwrite: bool = False) -> str:
         target = self.validate_safe_path(file_path, must_exist=False)
+        if target.exists() and not overwrite:
+            raise FileExistsError(
+                f"El archivo '{target.name}' ya existe en esa ubicación. Especifica 'sobrescribir' si deseas reemplazarlo."
+            )
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         self._record_journal(uuid.uuid4().hex[:8], "create_file", str(target), "")
@@ -278,7 +287,7 @@ class SafeFileManager:
                     found = candidate
                     break
                 for item in root.iterdir():
-                    if item.name.lower() == query_name or query_name in item.name.lower():
+                    if item.name.lower() == query_name or item.stem.lower() == query_name:
                         found = item
                         break
                 if found:
@@ -286,6 +295,12 @@ class SafeFileManager:
             if found is None:
                 raise FileNotFoundError(f"No encontré el archivo o carpeta '{path}' en tu Escritorio, Descargas ni Documentos.")
             target = self.validate_safe_path(found, must_exist=True)
+
+        if target.suffix.lower() in DANGEROUS_EXTENSIONS:
+            raise PermissionError(
+                f"Apertura bloqueada por seguridad: no se permite ejecutar binarios o scripts ({target.suffix}). "
+                "Para iniciar programas autorizados, usa el comando de aplicación."
+            )
 
         if dry_run or os.name != "nt":
             return f"Abierto: {target}"

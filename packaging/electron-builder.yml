@@ -1,0 +1,32 @@
+appId: "com.amadeus.kurisu"
+productName: "Amadeus Kurisu"
+copyright: "Copyright © 2026 Future Gadget Lab"
+directories:
+  output: "../dist/installer"
+  buildResources: "assets"
+
+files:
+  - "src/**"
+  - "package.json"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/*.d.ts"
+  - "!**/node_modules/.bin"
+
+win:
+  target:
+    - target: "nsis"
+      arch:
+        - "x64"
+  requestedExecutionLevel: "asInvoker"
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: "Amadeus Kurisu"
+  installerIcon: "assets/icon.ico"
+  uninstallerIcon: "assets/icon.ico"
+  deleteAppDataOnUninstall: false

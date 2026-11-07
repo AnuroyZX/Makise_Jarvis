@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
+import secrets
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 import urllib.parse
@@ -460,11 +462,18 @@ class EphemeralOnboardingServer:
         host: str = "127.0.0.1",
         port: int = 0,
         idle_timeout_sec: float = 120.0,
+        auth_token: Optional[str] = None,
     ) -> None:
         self.system = system
         self.host = host
         self.port = port
         self.idle_timeout_sec = idle_timeout_sec
+        self.auth_token: str = (
+            auth_token
+            or getattr(self.system.settings, "auth_token", "")
+            or secrets.token_urlsafe(24)
+        )
+        self.system.settings.auth_token = self.auth_token
         self._server: Optional[asyncio.AbstractServer] = None
         self._last_request_ts: float = 0.0
         self._watchdog_task: Optional[asyncio.Task] = None
@@ -483,6 +492,9 @@ class EphemeralOnboardingServer:
         return self.system.data_dir / "avatar.vrm"
 
     async def start(self) -> str:
+        if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+            self.system.ws_bridge.auth_token = self.auth_token
+
         if self.is_running:
             self._last_request_ts = time.monotonic()
             return self.url
@@ -526,52 +538,111 @@ class EphemeralOnboardingServer:
             if len(parts) < 2:
                 return
             method, raw_path = parts[0], parts[1]
-            path = urllib.parse.urlparse(raw_path).path
+            parsed_url = urllib.parse.urlparse(raw_path)
+            path = parsed_url.path
+            query_params = dict(urllib.parse.parse_qsl(parsed_url.query))
 
+            headers: dict[str, str] = {}
             content_length = 0
             while True:
                 hdr = await reader.readline()
                 if not hdr or hdr in (b"\r\n", b"\n"):
                     break
-                hdr_str = hdr.decode("utf-8", errors="replace")
-                if hdr_str.lower().startswith("content-length:"):
-                    content_length = int(hdr_str.split(":", 1)[1].strip())
+                hdr_str = hdr.decode("utf-8", errors="replace").strip()
+                if ":" in hdr_str:
+                    k, v = hdr_str.split(":", 1)
+                    headers[k.lower().strip()] = v.strip()
+                    if k.lower().strip() == "content-length":
+                        try:
+                            content_length = int(v.strip())
+                        except ValueError:
+                            content_length = 0
 
-            # Support up to 100 MB for .vrm binary model uploads
-            body_bytes = (
-                await reader.readexactly(content_length)
-                if 0 < content_length <= 100 * 1024 * 1024
-                else b""
-            )
-            status, content_type, resp_bytes = await self._route_request(
-                method, path, body_bytes
-            )
+            # 1. DNS Rebinding Shield: Loopback Host verification
+            host_header = headers.get("host", "").split(":")[0].strip().lower()
+            if host_header and host_header not in ("127.0.0.1", "localhost"):
+                status = "403 Forbidden"
+                content_type = "text/plain"
+                resp_bytes = b"Forbidden: Host must be loopback (127.0.0.1 or localhost)"
+                allow_origin_hdr = ""
+            else:
+                # 2. CORS Restriction: Reflect verified loopback origin only
+                origin = headers.get("origin", "")
+                allow_origin_hdr = ""
+                if origin:
+                    orig_host = urllib.parse.urlparse(origin).hostname
+                    if orig_host in ("127.0.0.1", "localhost"):
+                        allow_origin_hdr = f"Access-Control-Allow-Origin: {origin}\r\nAccess-Control-Allow-Credentials: true\r\n"
+
+                # 3. Auth Token Gate for /api/* endpoints
+                if path.startswith("/api/"):
+                    req_token = headers.get("x-amadeus-token") or query_params.get("token")
+                    if req_token != self.auth_token and method != "OPTIONS":
+                        status = "401 Unauthorized"
+                        content_type = "application/json"
+                        resp_bytes = b'{"error":"unauthorized_invalid_token"}'
+                    else:
+                        # Support up to 100 MB for .vrm binary model uploads
+                        body_bytes = (
+                            await reader.readexactly(content_length)
+                            if 0 < content_length <= 100 * 1024 * 1024
+                            else b""
+                        )
+                        status, content_type, resp_bytes = await self._route_request(
+                            method, path, body_bytes, query_params
+                        )
+                else:
+                    body_bytes = b""
+                    status, content_type, resp_bytes = await self._route_request(
+                        method, path, body_bytes, query_params
+                    )
 
             header_block = (
                 f"HTTP/1.1 {status}\r\n"
                 f"Content-Type: {content_type}\r\n"
                 f"Content-Length: {len(resp_bytes)}\r\n"
-                f"Access-Control-Allow-Origin: *\r\n"
+                f"{allow_origin_hdr}"
                 f"Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
-                f"Access-Control-Allow-Headers: Content-Type\r\n"
+                f"Access-Control-Allow-Headers: Content-Type, X-Amadeus-Token\r\n"
                 f"Cache-Control: no-store\r\n"
                 f"Connection: close\r\n\r\n"
             ).encode("utf-8")
             writer.write(header_block + resp_bytes)
             await writer.drain()
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger("amadeus.onboarding_ui").debug("HTTP client error: %s", exc)
         finally:
             writer.close()
 
     async def _route_request(
-        self, method: str, path: str, body: bytes
+        self, method: str, path: str, body: bytes, query_params: Optional[Dict[str, str]] = None
     ) -> tuple[str, str, bytes]:
         if method == "OPTIONS":
             return "204 No Content", "text/plain", b""
 
         if method == "GET" and path == "/":
-            return "200 OK", "text/html; charset=utf-8", AMADEUS_HTML_UI.encode("utf-8")
+            token_shim = (
+                f"<script>\n"
+                f"window.__AMADEUS_TOKEN__ = {json.dumps(self.auth_token)};\n"
+                f"(function() {{\n"
+                f"  const _f = window.fetch;\n"
+                f"  window.fetch = function(url, init) {{\n"
+                f"    init = init || {{}};\n"
+                f"    init.headers = init.headers || {{}};\n"
+                f"    if (window.__AMADEUS_TOKEN__) {{\n"
+                f"      if (typeof init.headers.set === 'function') {{\n"
+                f"        init.headers.set('X-Amadeus-Token', window.__AMADEUS_TOKEN__);\n"
+                f"      }} else {{\n"
+                f"        init.headers['X-Amadeus-Token'] = window.__AMADEUS_TOKEN__;\n"
+                f"      }}\n"
+                f"    }}\n"
+                f"    return _f(url, init);\n"
+                f"  }};\n"
+                f"}})();\n"
+                f"</script>\n</head>"
+            )
+            html = AMADEUS_HTML_UI.replace("</head>", token_shim)
+            return "200 OK", "text/html; charset=utf-8", html.encode("utf-8")
 
         if method == "GET" and path == "/api/ping":
             return "200 OK", "application/json", b'{"status":"alive"}'
@@ -598,6 +669,8 @@ class EphemeralOnboardingServer:
                 "fish_model_id": self.system.settings.fish_model_id,
                 "elevenlabs_voice_id": self.system.settings.elevenlabs_voice_id,
                 "bubbles_mode": self.system.settings.bubbles_mode,
+                "cloud_vision_consent": self.system.settings.cloud_vision_consent,
+                "cloud_stt_consent": self.system.settings.cloud_stt_consent,
                 "masked_keys": self.system.settings.masked_summary(),
             }
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
@@ -765,12 +838,39 @@ class EphemeralOnboardingServer:
                     ]
                 self.system.settings.telegram_allowed_user_ids = parsed_ids
 
+            if "cloud_vision_consent" in data:
+                self.system.settings.cloud_vision_consent = bool(data["cloud_vision_consent"])
+            if "cloud_stt_consent" in data:
+                self.system.settings.cloud_stt_consent = bool(data["cloud_stt_consent"])
+
             self.system.settings.onboarding_completed = True
             self.system.settings.save(self.system.data_dir)
             resp_obj: Dict[str, Any] = {"status": "saved"}
             if warning:
                 resp_obj["warning"] = warning
             return "200 OK", "application/json", json.dumps(resp_obj).encode("utf-8")
+
+        if method == "POST" and path == "/api/sync_fish_agent":
+            try:
+                res = await self.system.voice.sync_fish_agent_config()
+                self.system.settings.save(self.system.data_dir)
+                return (
+                    "200 OK",
+                    "application/json",
+                    json.dumps(
+                        {
+                            "status": "ok",
+                            "fish_model_id": self.system.settings.fish_model_id,
+                            "details": res,
+                        }
+                    ).encode("utf-8"),
+                )
+            except Exception as exc:
+                return (
+                    "500 Internal Server Error",
+                    "application/json",
+                    json.dumps({"error": str(exc)}).encode("utf-8"),
+                )
 
         if method == "POST" and path == "/api/user_md":
             content = str(data.get("content", ""))
