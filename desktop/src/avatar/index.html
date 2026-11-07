@@ -618,12 +618,30 @@ async function playNextSentenceChunk() {
   });
 }
 
+// Passive Overlay Click-Through: let all clicks pass through transparent areas & 3D body to Valorant/apps behind,
+// and only capture mouse events when hovering directly over the interactive UI bars.
+let lastIgnoreState = true;
+window.addEventListener('mousemove', (e) => {
+  if (!window.amadeusDesktop) return;
+  const overInteractive = Boolean(
+    e.target && e.target.closest && e.target.closest('#miniDock, #quickInputBar, #confirmCard')
+  );
+  const shouldIgnore = !overInteractive;
+  if (shouldIgnore !== lastIgnoreState) {
+    lastIgnoreState = shouldIgnore;
+    window.amadeusDesktop.setIgnoreMouse(shouldIgnore);
+  }
+});
+
 window.submitQuickInput = () => {
   const inp = document.getElementById('quickInput');
   const text = inp.value.trim();
+  document.getElementById('quickInputBar').style.display = 'none';
+  if (window.amadeusDesktop && window.amadeusDesktop.setFocusable) {
+    window.amadeusDesktop.setFocusable(false);
+  }
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
   inp.value = '';
-  document.getElementById('quickInputBar').style.display = 'none';
   ws.send(JSON.stringify({ type: 'user_text', text }));
 };
 
@@ -638,9 +656,13 @@ window.toggleVoiceMic = () => {
 
 window.toggleQuickBar = () => {
   const bar = document.getElementById('quickInputBar');
-  bar.style.display = bar.style.display === 'flex' ? 'none' : 'flex';
-  if (bar.style.display === 'flex') {
-    document.getElementById('quickInput').focus();
+  const opening = bar.style.display !== 'flex';
+  bar.style.display = opening ? 'flex' : 'none';
+  if (window.amadeusDesktop && window.amadeusDesktop.setFocusable) {
+    window.amadeusDesktop.setFocusable(opening);
+  }
+  if (opening) {
+    setTimeout(() => document.getElementById('quickInput').focus(), 40);
   }
 };
 

@@ -57,7 +57,7 @@ function createTrayEmblem() {
 
 function createAvatarWindow() {
   if (avatarWin && !avatarWin.isDestroyed()) {
-    avatarWin.show();
+    avatarWin.showInactive();
     return avatarWin;
   }
 
@@ -75,7 +75,8 @@ function createAvatarWindow() {
     transparent: true,
     resizable: false,
     alwaysOnTop: true,
-    skipTaskbar: false,
+    focusable: false,
+    skipTaskbar: true,
     hasShadow: false,
     title: "Makise Kurisu — Avatar 3D",
     webPreferences: {
@@ -86,32 +87,16 @@ function createAvatarWindow() {
     },
   });
 
-  avatarWin.setAlwaysOnTop(true, "screen-saver", 1);
-  avatarWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // Mid-tier passive overlay ("normal" topmost level, no timer, no focus stealing, click-through on transparent areas)
+  // This keeps Kurisu floating above normal desktop windows without minimizing or tabbing out of Valorant / fullscreen games.
+  avatarWin.setAlwaysOnTop(true, "normal");
+  avatarWin.setIgnoreMouseEvents(true, { forward: true });
+
   avatarWin.webContents.on("console-message", (_ev, _level, msg, line) => {
     console.log(`[AVATAR-RENDERER:${line}] ${msg}`);
   });
-  avatarWin.webContents.on("did-finish-load", () => {
-    forceAvatarToFront();
-  });
-  avatarWin.on("blur", () => {
-    forceAvatarToFront();
-  });
   avatarWin.loadFile(path.join(__dirname, "..", "avatar", "index.html"));
-
-  if (topMostTimer) clearInterval(topMostTimer);
-  topMostTimer = setInterval(() => {
-    forceAvatarToFront();
-  }, 1000);
   return avatarWin;
-}
-
-function forceAvatarToFront() {
-  if (!avatarWin || avatarWin.isDestroyed() || ecoModeActive) return;
-  try {
-    avatarWin.setAlwaysOnTop(true, "screen-saver", 1);
-    avatarWin.moveTop();
-  } catch (_e) {}
 }
 
 function openSettingsPanel() {
@@ -138,12 +123,8 @@ function openSettingsPanel() {
     },
   });
   panelWin.loadFile(path.join(__dirname, "..", "panel", "index.html"));
-  panelWin.on("focus", () => {
-    forceAvatarToFront();
-  });
   panelWin.on("closed", () => {
     panelWin = null;
-    forceAvatarToFront();
   });
   return panelWin;
 }
@@ -218,7 +199,17 @@ function registerShortcuts() {
 }
 
 ipcMain.handle("amadeus:get-connection-info", () => connectionInfo);
-ipcMain.on("amadeus:set-ignore-mouse", () => {});
+ipcMain.on("amadeus:set-ignore-mouse", (_ev, ignore) => {
+  if (avatarWin && !avatarWin.isDestroyed()) {
+    avatarWin.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
+  }
+});
+ipcMain.on("amadeus:set-focusable", (_ev, focusable) => {
+  if (avatarWin && !avatarWin.isDestroyed()) {
+    avatarWin.setFocusable(Boolean(focusable));
+    if (focusable) avatarWin.focus();
+  }
+});
 ipcMain.on("amadeus:set-dodge-enabled", () => {});
 ipcMain.on("amadeus:open-panel", () => openSettingsPanel());
 
