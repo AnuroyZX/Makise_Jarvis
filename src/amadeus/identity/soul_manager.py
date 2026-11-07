@@ -7,6 +7,7 @@ from typing import Optional
 
 from amadeus.body.agent_core import AgentMessage, AmadeusAgentCore
 from amadeus.config import get_default_data_dir
+from amadeus.identity.character_pack import CharacterPack
 
 
 def resolve_bundle_root() -> Path:
@@ -35,6 +36,7 @@ class SoulManager:
         soul_path: Optional[Path] = None,
         data_dir: Optional[Path] = None,
         user_display_name: str = "Okabe",
+        active_character: Optional[CharacterPack] = None,
     ) -> None:
         self._project_root = resolve_bundle_root()
         self.soul_path = soul_path or (self._project_root / "config" / "SOUL.md")
@@ -43,6 +45,7 @@ class SoulManager:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.user_md_path = self.data_dir / "USER.md"
         self.user_display_name = user_display_name
+        self.active_character: Optional[CharacterPack] = active_character
         self._ensure_user_md()
 
     def _ensure_user_md(self) -> None:
@@ -58,7 +61,15 @@ class SoulManager:
                 )
             self.user_md_path.write_text(content, encoding="utf-8")
 
+    def set_active_character(self, pack: CharacterPack) -> None:
+        """Switch active character pack and dynamically update soul persona."""
+        self.active_character = pack
+
     def read_soul(self) -> str:
+        if self.active_character:
+            content = self.active_character.get_soul_content()
+            if content:
+                return content
         if self.soul_path.exists():
             return self.soul_path.read_text(encoding="utf-8").strip()
         return DEFAULT_SOUL_FALLBACK
