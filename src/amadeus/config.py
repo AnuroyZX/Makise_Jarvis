@@ -21,6 +21,8 @@ def classify_api_key(raw_key: str) -> str:
         return "openai_api_key"
     if key.startswith("AIza") or key.startswith("AQ."):
         return "gemini_api_key"
+    if key.startswith("hf_"):
+        return "hf_token"
     return ""
 
 
@@ -83,6 +85,7 @@ class AmadeusSettings:
     # Module 9: Voice (Qwen3-TTS Makise Kurisu + Fish Audio + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
     voice_engine: str = "auto"  # "auto" | "qwen3_kurisu" | "fish" | "gemini_kurisu" | "elevenlabs" | "edge"
     qwen3_speaker: str = "amadeus"  # "amadeus" | "kurisu" | "phone" (starrydark/Makise_Kurisu_Qwen3_TTS)
+    hf_token: str = ""  # Optional free HuggingFace token (hf_...) for higher ZeroGPU quota on Qwen3-TTS
     fish_audio_api_key: str = ""
     fish_model_id: str = "8750a78673b44b568c08e23eebcea67e"  # Makise Kurisu (牧濑红莉栖) on Fish Audio
     gemini_tts_voice: str = "Leda"  # Young, calm, smooth anime-timbre voice on Gemini 2.5 Flash TTS

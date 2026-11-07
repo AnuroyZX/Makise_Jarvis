@@ -44,6 +44,7 @@ class AmadeusVoiceEngine:
         self._client = http_client
         self.qwen3 = Qwen3KurisuTTSModule(
             speaker=settings.qwen3_speaker,
+            hf_token=settings.hf_token,
             http_client=http_client,
         )
 
@@ -83,6 +84,7 @@ class AmadeusVoiceEngine:
         # 0. Independent Qwen3-TTS Makise Kurisu Module (`starrydark/Makise_Kurisu_Qwen3_TTS`)
         if engine == "qwen3_kurisu" and not for_telegram_opus:
             try:
+                self.qwen3.hf_token = self.settings.hf_token
                 q_out = await self.qwen3.synthesize(
                     clean_text, speaker=self.settings.qwen3_speaker
                 )
@@ -95,7 +97,19 @@ class AmadeusVoiceEngine:
                         saved_path=saved,
                     )
             except Exception:
-                # If Space is busy/offline, fall back gracefully to Gemini Kurisu TTS
+                # If Space is busy/offline, fall back gracefully to Fish Audio or Gemini Kurisu TTS
+                if self.settings.fish_audio_api_key:
+                    try:
+                        audio_bytes, mime = await self._call_fish_audio(clean_text)
+                        saved = self._save_audio(audio_bytes, ".mp3") if save_to_disk else None
+                        return VoiceSynthesisResult(
+                            audio_bytes=audio_bytes,
+                            provider="fish_audio",
+                            mime_type=mime,
+                            saved_path=saved,
+                        )
+                    except Exception:
+                        pass
                 if self.settings.gemini_api_key:
                     try:
                         audio_bytes, mime = await self._call_gemini_kurisu_tts(clean_text)

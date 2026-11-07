@@ -289,7 +289,8 @@ async function initPanel() {
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data);
         if (msg.type === 'reply_chunk') {
-          appendChat('msg-kurisu', `Kurisu [${msg.emotion}]`, msg.sentence);
+          const provTag = msg.provider ? ` · 🔊 ${msg.provider}` : '';
+          appendChat('msg-kurisu', `Kurisu [${msg.emotion}${provTag}]`, msg.sentence);
           const vBtn = document.getElementById('testVoiceBtn');
           if (vBtn) vBtn.textContent = '🔊 Probar Voz en Kurisu 3D';
         } else if (msg.type === 'reply_detail' && msg.detail) {

@@ -351,10 +351,12 @@ class AmadeusWebSocketBridge:
 
             audio_b64 = ""
             mime = "audio/mpeg"
+            voice_provider = "disabled"
             if self.system.settings.voice_replies_enabled:
                 synth = await self.system.voice.synthesize(
                     sentence, for_telegram_opus=False, save_to_disk=False
                 )
+                voice_provider = synth.provider
                 if synth.audio_bytes:
                     audio_b64 = base64.b64encode(synth.audio_bytes).decode("ascii")
                     mime = synth.mime_type
@@ -373,6 +375,7 @@ class AmadeusWebSocketBridge:
                     "gesture": dual.gesture if idx == 0 else "idle",
                     "audio_b64": audio_b64,
                     "mime": mime,
+                    "provider": voice_provider,
                 }
             )
 

@@ -46,6 +46,7 @@ class Qwen3KurisuTTSModule:
         space_url: str = DEFAULT_SPACE_URL,
         model_id: str = DEFAULT_HF_REPO,
         use_local_checkpoint: bool = False,
+        hf_token: str = "",
         http_client: Optional[httpx.AsyncClient] = None,
     ) -> None:
         self.speaker: str = speaker if speaker in ("kurisu", "amadeus", "phone") else "amadeus"
@@ -53,6 +54,7 @@ class Qwen3KurisuTTSModule:
         self.space_url = space_url.rstrip("/")
         self.model_id = model_id
         self.use_local_checkpoint = use_local_checkpoint
+        self.hf_token = hf_token.strip()
         self._external_client = http_client is not None
         self._client = http_client
         self._local_model = None
@@ -129,8 +131,35 @@ class Qwen3KurisuTTSModule:
         self, text: str, speaker: str, language: str
     ) -> bytes:
         """
-        Calls `starrydark/Kurisu_Qwen3_TTS` Gradio v5 SSE queue via pure async `httpx`.
+        Calls `starrydark/Kurisu_Qwen3_TTS` Space via `gradio_client` (which handles
+        HuggingFace ZeroGPU `X-IP-Token` headers and optional `hf_token`), or pure async
+        `httpx` when an external mock transport client is injected.
         """
+        if not self._external_client:
+            import asyncio
+            from pathlib import Path
+
+            def _call_gradio_space() -> bytes:
+                from gradio_client import Client
+
+                kwargs = {"token": self.hf_token} if self.hf_token else {}
+                g_client = Client("starrydark/Kurisu_Qwen3_TTS", **kwargs)
+                res = g_client.predict(
+                    text,
+                    speaker,
+                    language,
+                    api_name="/generate_speech",
+                )
+                wav_path = res[0] if isinstance(res, (list, tuple)) else res
+                if isinstance(wav_path, dict) and wav_path.get("path"):
+                    wav_path = wav_path["path"]
+                p = Path(str(wav_path))
+                if p.is_file():
+                    return p.read_bytes()
+                raise RuntimeError("Qwen3-TTS Space did not return a local audio file.")
+
+            return await asyncio.to_thread(_call_gradio_space)
+
         client = await self._get_client()
         call_url = f"{self.space_url}/gradio_api/call/generate_speech"
         resp = await client.post(
