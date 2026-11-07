@@ -588,6 +588,7 @@ class EphemeralOnboardingServer:
                 "discovered_apps_count": len(self.system.toolkit.app_launcher.catalog),
                 "user_md": self.system.identity.read_user_profile(),
                 "has_vrm": self.vrm_file_path.exists(),
+                "has_kikivoice_ref": (self.system.data_dir / "kikivoice_ref.mp3").exists(),
                 "telegram_allowed_user_ids": self.system.settings.telegram_allowed_user_ids,
                 "voice_engine": self.system.settings.voice_engine,
                 "qwen3_speaker": self.system.settings.qwen3_speaker,
@@ -624,6 +625,17 @@ class EphemeralOnboardingServer:
                 "200 OK",
                 "application/json",
                 json.dumps({"status": "vrm_saved", "size_bytes": len(body)}).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/upload_voice_ref":
+            if not body:
+                return "400 Bad Request", "application/json", b'{"error":"empty_audio"}'
+            ref_file = self.system.data_dir / "kikivoice_ref.mp3"
+            ref_file.write_bytes(body)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "voice_ref_saved", "size_bytes": len(body)}).encode("utf-8"),
             )
 
         if method == "GET" and path == "/api/avatar.vrm":

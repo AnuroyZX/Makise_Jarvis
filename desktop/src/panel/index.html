@@ -154,6 +154,15 @@
         <option value="phone">Phone (Llamada telefónica)</option>
       </select>
 
+      <label>Muestra de Voz de KikiVoice (.mp3 / .wav de 10-15s)</label>
+      <div class="btn-bar" style="margin-top:4px;">
+        <label class="btn-upload" style="margin-top:0;">
+          🎤 Subir Audio de KikiVoice (.mp3/.wav)
+          <input type="file" accept=".mp3,.wav" style="display:none" onchange="uploadKikiVoiceRef(this.files[0])">
+        </label>
+        <span id="kikiMsg" style="font-size:0.76rem; color:var(--muted); align-self:center;"></span>
+      </div>
+
       <label>Fish Audio Model ID (Makise Kurisu / 牧濑红莉栖)</label>
       <input id="fish_model_id" value="8750a78673b44b568c08e23eebcea67e">
 
@@ -247,6 +256,27 @@ async function initPanel() {
   document.getElementById('vrmMsg').textContent = d.has_vrm
     ? '✅ Modelo avatar.vrm cargado y visible en la esquina inferior derecha.'
     : '⚠️ Aún no hay archivo .vrm cargado.';
+  const kikiEl = document.getElementById('kikiMsg');
+  if (kikiEl) {
+    kikiEl.textContent = d.has_kikivoice_ref
+      ? '✅ Muestra KikiVoice guardada (kikivoice_ref.mp3)'
+      : 'Exporta 10-15s desde kikivoice.ai y súbelo aquí';
+  }
+}
+
+async function uploadKikiVoiceRef(file) {
+  if (!file) return;
+  const kikiEl = document.getElementById('kikiMsg');
+  kikiEl.textContent = `Subiendo ${file.name}...`;
+  const buf = await file.arrayBuffer();
+  const r = await fetch(`${baseUrl}/api/upload_voice_ref`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/octet-stream'},
+    body: buf
+  });
+  kikiEl.textContent = r.ok
+    ? '✅ Muestra de KikiVoice guardada en data/kikivoice_ref.mp3'
+    : '❌ Error al guardar muestra';
 }
 
 function sendChatMessage() {

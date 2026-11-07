@@ -30,6 +30,7 @@ let coreLink = null;
 let avatarWin = null;
 let panelWin = null;
 let tray = null;
+let topMostTimer = null;
 let ecoModeActive = false;
 let connectionInfo = { wsPort: 0, wsToken: "", httpUrl: "" };
 
@@ -85,18 +86,32 @@ function createAvatarWindow() {
     },
   });
 
-  avatarWin.setAlwaysOnTop(true, "floating");
+  avatarWin.setAlwaysOnTop(true, "screen-saver", 1);
+  avatarWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   avatarWin.webContents.on("console-message", (_ev, _level, msg, line) => {
     console.log(`[AVATAR-RENDERER:${line}] ${msg}`);
   });
   avatarWin.webContents.on("did-finish-load", () => {
-    if (avatarWin && !avatarWin.isDestroyed()) {
-      avatarWin.show();
-      avatarWin.moveTop();
-    }
+    forceAvatarToFront();
+  });
+  avatarWin.on("blur", () => {
+    forceAvatarToFront();
   });
   avatarWin.loadFile(path.join(__dirname, "..", "avatar", "index.html"));
+
+  if (topMostTimer) clearInterval(topMostTimer);
+  topMostTimer = setInterval(() => {
+    forceAvatarToFront();
+  }, 1000);
   return avatarWin;
+}
+
+function forceAvatarToFront() {
+  if (!avatarWin || avatarWin.isDestroyed() || ecoModeActive) return;
+  try {
+    avatarWin.setAlwaysOnTop(true, "screen-saver", 1);
+    avatarWin.moveTop();
+  } catch (_e) {}
 }
 
 function openSettingsPanel() {
@@ -123,8 +138,12 @@ function openSettingsPanel() {
     },
   });
   panelWin.loadFile(path.join(__dirname, "..", "panel", "index.html"));
+  panelWin.on("focus", () => {
+    forceAvatarToFront();
+  });
   panelWin.on("closed", () => {
     panelWin = null;
+    forceAvatarToFront();
   });
   return panelWin;
 }
@@ -240,5 +259,6 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  if (topMostTimer) clearInterval(topMostTimer);
   if (coreLink) coreLink.stop();
 });

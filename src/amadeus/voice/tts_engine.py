@@ -169,8 +169,9 @@ class AmadeusVoiceEngine:
 
     async def _call_fish_audio(self, text: str) -> tuple[bytes, str]:
         """
-        Calls Fish Audio TTS (`https://api.fish.audio/v1/tts`) with Makise Kurisu's
-        trained model ID (`8750a78673b44b568c08e23eebcea67e`).
+        Calls Fish Audio TTS (`https://api.fish.audio/v1/tts`) using either:
+        1. An uploaded KikiVoice reference audio (`kikivoice_ref.mp3`) for zero-shot cloning, or
+        2. Makise Kurisu's trained model ID (`8750a78673b44b568c08e23eebcea67e`).
         """
         client = await self._get_client()
         headers = {
@@ -178,13 +179,24 @@ class AmadeusVoiceEngine:
             "Content-Type": "application/json",
             "model": "s1",
         }
-        payload = {
+        kiki_ref = self.cache_dir.parent / "kikivoice_ref.mp3"
+        payload: dict = {
             "text": text,
-            "reference_id": self.settings.fish_model_id or "8750a78673b44b568c08e23eebcea67e",
             "format": "mp3",
             "mp3_bitrate": 128,
             "latency": "balanced",
         }
+        if kiki_ref.exists() and not self.settings.fish_model_id:
+            payload["references"] = [
+                {
+                    "audio": base64.b64encode(kiki_ref.read_bytes()).decode("ascii"),
+                    "text": "",
+                }
+            ]
+        else:
+            payload["reference_id"] = (
+                self.settings.fish_model_id or "8750a78673b44b568c08e23eebcea67e"
+            )
         resp = await client.post("https://api.fish.audio/v1/tts", headers=headers, json=payload)
         resp.raise_for_status()
         return resp.content, "audio/mpeg"

@@ -259,8 +259,7 @@ function loadVrmModel(url) {
       camera.lookAt(0.0, height * 0.81, 0.0);
       mixer = new THREE.AnimationMixer(vrm.scene);
       applyEmotion(currentEmotion);
-      spawnLateralDialog("Sistema Amadeus en línea.", 3600);
-      setTimeout(() => spawnLateralDialog("¿En qué trabajamos hoy?", 4200), 900);
+      playSentenceBubblesWithAudio("Sistema Amadeus en línea. ¿En qué trabajamos hoy?", 3200);
     },
     undefined,
     (err) => {
@@ -392,17 +391,64 @@ function animate() {
 }
 animate();
 
+let activeDialogTimers = [];
+
+function splitIntoSpokenPhrases(sentence) {
+  const clean = (sentence || '').trim();
+  if (!clean) return [];
+  if (clean.length <= 52) return [clean];
+  // Split at natural pause punctuation while keeping punctuation attached
+  const rawParts = clean.split(/(?<=[,;:.!?—])\s+/);
+  const merged = [];
+  let buf = '';
+  for (const part of rawParts) {
+    if (!buf) {
+      buf = part;
+    } else if ((buf + ' ' + part).length <= 58) {
+      buf += ' ' + part;
+    } else {
+      merged.push(buf);
+      buf = part;
+    }
+  }
+  if (buf) merged.push(buf);
+  return merged;
+}
+
 /**
- * Spawns a lateral Soft Air dialogue pill on the left side of Kurisu,
- * writes its text character-by-character in real time, and erases itself
- * dynamically after `holdMs` so the screen stays clean.
+ * Displays phrases strictly one after another in order, with each bubble's
+ * typewriter speed and start delay synchronized to the exact audio duration (`totalDurationMs`).
  */
-function spawnLateralDialog(text, holdMs = 4500) {
+function playSentenceBubblesWithAudio(sentence, totalDurationMs = 2600) {
+  const phrases = splitIntoSpokenPhrases(sentence);
+  if (phrases.length === 0 || bubblesMode === 'off') return;
+
+  const totalChars = Math.max(1, phrases.reduce((acc, p) => acc + p.length, 0));
+  let cumulativeDelayMs = 0;
+
+  for (let i = 0; i < phrases.length; i++) {
+    const phrase = phrases[i];
+    const ratio = phrase.length / totalChars;
+    const phraseSpeechMs = Math.max(700, Math.round(totalDurationMs * ratio));
+    const startAtMs = cumulativeDelayMs;
+    cumulativeDelayMs += phraseSpeechMs + 140;
+
+    const timerId = setTimeout(() => {
+      spawnLateralDialog(phrase, phraseSpeechMs, 2600);
+    }, startAtMs);
+    activeDialogTimers.push(timerId);
+  }
+}
+
+/**
+ * Spawns a single lateral Soft Air dialogue pill, types it over `typingDurationMs`
+ * (matching the voice duration for that phrase), and erases itself after `holdAfterMs`.
+ */
+function spawnLateralDialog(text, typingDurationMs = 1400, holdAfterMs = 2600) {
   const clean = (text || '').trim();
   if (!clean || bubblesMode === 'off') return;
 
   const stream = document.getElementById('sideDialogStream');
-  // Keep at most 3 lateral bubbles visible at once
   const activeBubbles = Array.from(stream.querySelectorAll('.side-bubble:not(.exiting)'));
   while (activeBubbles.length >= 3) {
     const oldest = activeBubbles.shift();
@@ -422,16 +468,19 @@ function spawnLateralDialog(text, holdMs = 4500) {
   requestAnimationFrame(() => bubble.classList.add('visible'));
 
   let idx = 0;
-  const charDelay = Math.max(14, Math.min(28, Math.floor(1800 / Math.max(1, clean.length))));
+  // Sync typewriter pace to the voice duration (leaving ~15% buffer at end of phrase)
+  const charDelay = Math.max(18, Math.min(65, Math.floor((typingDurationMs * 0.85) / Math.max(1, clean.length))));
   const typeTimer = setInterval(() => {
     idx += 1;
     spanText.textContent = clean.slice(0, idx);
     if (idx >= clean.length) {
       clearInterval(typeTimer);
       cursor.remove();
-      setTimeout(() => removeBubbleSmoothly(bubble), holdMs);
+      const eraseTimer = setTimeout(() => removeBubbleSmoothly(bubble), holdAfterMs);
+      activeDialogTimers.push(eraseTimer);
     }
   }, charDelay);
+  activeDialogTimers.push(typeTimer);
 }
 
 function removeBubbleSmoothly(bubble) {
@@ -443,11 +492,16 @@ function removeBubbleSmoothly(bubble) {
 }
 
 function clearAllLateralDialogs() {
+  while (activeDialogTimers.length > 0) {
+    const t = activeDialogTimers.pop();
+    clearTimeout(t);
+    clearInterval(t);
+  }
   const stream = document.getElementById('sideDialogStream');
   Array.from(stream.children).forEach((b) => removeBubbleSmoothly(b));
 }
 
-// Sequential Sentence Audio Queue
+// Sequential Sentence Audio Queue synchronized with Lateral Dialogue Bubbles
 async function playNextSentenceChunk() {
   if (audioQueue.length === 0) {
     isPlayingQueue = false;
@@ -461,11 +515,11 @@ async function playNextSentenceChunk() {
   applyEmotion(item.emotion);
   triggerGesture(item.gesture);
 
-  // Spawn real-time typewriter lateral bubble for this spoken sentence
-  spawnLateralDialog(item.sentence, 4800);
+  const estimatedMs = Math.max(1600, (item.sentence || '').length * 68);
 
   if (!item.audio_b64) {
-    setTimeout(playNextSentenceChunk, 1200);
+    playSentenceBubblesWithAudio(item.sentence, estimatedMs);
+    setTimeout(playNextSentenceChunk, estimatedMs + 350);
     return;
   }
 
@@ -477,10 +531,30 @@ async function playNextSentenceChunk() {
     ws.send(JSON.stringify({ type: 'audio_playing', playing: true }));
   }
 
+  let startedBubbles = false;
+  const triggerSyncedBubbles = () => {
+    if (startedBubbles) return;
+    startedBubbles = true;
+    const realMs =
+      audioEl.duration && isFinite(audioEl.duration) && audioEl.duration > 0.2
+        ? Math.round(audioEl.duration * 1000)
+        : estimatedMs;
+    playSentenceBubblesWithAudio(item.sentence, realMs);
+  };
+
+  audioEl.onloadedmetadata = () => triggerSyncedBubbles();
+  audioEl.onended = () => {
+    setTimeout(playNextSentenceChunk, 180);
+  };
+  audioEl.onerror = () => {
+    triggerSyncedBubbles();
+    setTimeout(playNextSentenceChunk, estimatedMs);
+  };
   audioEl.src = `data:${item.mime || 'audio/mpeg'};base64,${item.audio_b64}`;
-  audioEl.onended = () => playNextSentenceChunk();
-  audioEl.onerror = () => setTimeout(playNextSentenceChunk, 1200);
-  audioEl.play().catch(() => setTimeout(playNextSentenceChunk, 1800));
+  audioEl.play().then(() => triggerSyncedBubbles()).catch(() => {
+    triggerSyncedBubbles();
+    setTimeout(playNextSentenceChunk, estimatedMs);
+  });
 }
 
 window.submitQuickInput = () => {
@@ -550,11 +624,17 @@ async function initConnection() {
       clearAllLateralDialogs();
     } else if (msg.type === 'reply_detail') {
       if (bubblesMode !== 'off' && msg.detail) {
-        // Split multi-line detail into lateral cards
+        // Enqueue detail lines into the sequential queue so they appear in strict order AFTER speech
         const lines = msg.detail.split(/\n+/).filter((l) => l.trim());
-        lines.slice(0, 3).forEach((line, i) => {
-          setTimeout(() => spawnLateralDialog(line, 6500), i * 650);
+        lines.slice(0, 3).forEach((line) => {
+          audioQueue.push({
+            sentence: line,
+            emotion: msg.emotion || currentEmotion,
+            gesture: 'idle',
+            audio_b64: '',
+          });
         });
+        if (!isPlayingQueue) playNextSentenceChunk();
       }
     } else if (msg.type === 'reply_chunk') {
       audioQueue.push(msg);

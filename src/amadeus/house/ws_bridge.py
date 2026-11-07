@@ -238,19 +238,7 @@ class AmadeusWebSocketBridge:
             dual.emotion.value if dual.emotion.value != "neutral" else default_emotion
         )
 
-        # 1. If there is a detailed written section, push it immediately so the user can read while she speaks
-        if dual.detail:
-            await self.broadcast(
-                {
-                    "type": "reply_detail",
-                    "turn_id": turn_id,
-                    "detail": dual.detail,
-                    "emotion": emotion_str,
-                    "gesture": dual.gesture,
-                }
-            )
-
-        # 2. Split spoken response into sentences and synthesize + stream sequentially (Open-LLM-VTuber queue)
+        # 1. Split spoken response into sentences and synthesize + stream sequentially (Open-LLM-VTuber queue)
         sentences = dual.split_spoken_sentences()
         await self.broadcast({"type": "listening", "state": "speaking", "turn_id": turn_id})
 
@@ -282,6 +270,18 @@ class AmadeusWebSocketBridge:
                     "gesture": dual.gesture if idx == 0 else "idle",
                     "audio_b64": audio_b64,
                     "mime": mime,
+                }
+            )
+
+        # 2. If there is a detailed written section, push it AFTER spoken chunks so bubbles stay in strict order
+        if dual.detail and not self._cancel_current_turn and self._current_turn_id == turn_id:
+            await self.broadcast(
+                {
+                    "type": "reply_detail",
+                    "turn_id": turn_id,
+                    "detail": dual.detail,
+                    "emotion": emotion_str,
+                    "gesture": dual.gesture,
                 }
             )
 
