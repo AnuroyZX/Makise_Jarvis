@@ -133,6 +133,15 @@ class AmadeusWebSocketBridge:
         try:
             snap = self.system.governor.snapshot()
             active_sid = getattr(self.system.core, "active_session_id", None) or ""
+            active_char = None
+            chars_list = []
+            if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
+                try:
+                    active_char = self.system.profiles.character_manager.get_active_character().to_dict()
+                    chars_list = [c.to_dict() for c in self.system.profiles.character_manager.list_characters()]
+                except Exception:
+                    pass
+
             await ws.send(
                 json.dumps(
                     {
@@ -142,7 +151,10 @@ class AmadeusWebSocketBridge:
                         "dsp_preset": self.system.settings.dsp_preset,
                         "has_vrm": (self.system.data_dir / "avatar.vrm").exists(),
                         "active_session_id": active_sid,
-                    }
+                        "active_character": active_char,
+                        "characters": chars_list,
+                    },
+                    ensure_ascii=False,
                 )
             )
             async for raw_msg in ws:
@@ -248,6 +260,34 @@ class AmadeusWebSocketBridge:
             if hasattr(self.system, "core") and hasattr(self.system.core, "start_new_session"):
                 sid = self.system.core.start_new_session(title=title or None)
                 await self.broadcast({"type": "session_created", "session_id": sid, "title": title or "Nueva Conversación"})
+            return
+
+        if msg_type == "switch_character":
+            char_id = str(data.get("id") or "")
+            if char_id and hasattr(self.system, "onboarding_ui"):
+                await self.system.onboarding_ui.switch_character(char_id)
+            elif char_id and hasattr(self.system, "profiles"):
+                pack = self.system.profiles.set_active_character(char_id)
+                if hasattr(self.system, "identity"):
+                    self.system.identity.set_active_character(pack)
+                await self.broadcast({"type": "character_switched", "character": pack.to_dict()})
+                await self.broadcast({"type": "reload_vrm"})
+            return
+
+        if msg_type == "get_characters":
+            if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
+                chars = [c.to_dict() for c in self.system.profiles.character_manager.list_characters()]
+                active_id = self.system.profiles.character_manager.get_active_character_id()
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "characters_list",
+                            "characters": chars,
+                            "active_id": active_id,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
             return
 
         if msg_type == "switch_session":

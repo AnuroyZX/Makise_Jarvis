@@ -66,12 +66,14 @@ class AmadeusSystem:
             http_client=self._shared_http,
         )
 
-        # Module 4: Identidad y Quién eres + Perfiles (v3.0)
+        # Module 4: Identidad y Quién eres + Perfiles y Personajes
+        self.profiles = ProfileManager(data_dir=self.data_dir)
+        active_pack = self.profiles.get_active_character()
         self.identity = SoulManager(
             data_dir=self.data_dir,
             user_display_name=self.settings.user_display_name,
+            active_character=active_pack,
         )
-        self.profiles = ProfileManager(data_dir=self.data_dir)
 
         # Module 5: Memoria Híbrida (Honcho + SQLite FTS5) + Aprendizaje (F5)
         self.memory = HybridMemoryManager(

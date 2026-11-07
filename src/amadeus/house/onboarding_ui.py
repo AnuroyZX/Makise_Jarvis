@@ -489,6 +489,17 @@ class EphemeralOnboardingServer:
 
     @property
     def vrm_file_path(self) -> Path:
+        # 1. Check active character pack's VRM
+        if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
+            try:
+                active_char = self.system.profiles.character_manager.get_active_character()
+                char_vrm = active_char.get_vrm_path()
+                if char_vrm and char_vrm.exists():
+                    return char_vrm
+            except Exception:
+                pass
+
+        # 2. Check user-uploaded global avatar.vrm
         user_vrm = self.system.data_dir / "avatar.vrm"
         if user_vrm.exists():
             return user_vrm
@@ -498,6 +509,30 @@ class EphemeralOnboardingServer:
         if bundled_vrm.exists():
             return bundled_vrm
         return user_vrm
+
+    async def switch_character(self, character_id: str):
+        pack = self.system.profiles.set_active_character(character_id)
+        if hasattr(self.system, "identity") and self.system.identity is not None:
+            self.system.identity.set_active_character(pack)
+        if hasattr(self.system, "settings") and self.system.settings is not None:
+            self.system.settings.active_profile = pack.id
+            self.system.settings.dsp_preset = pack.dsp_preset
+            self.system.settings.voice_engine = pack.voice_engine
+            self.system.settings.save(self.system.data_dir)
+
+        if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+            await self.system.ws_bridge.broadcast({
+                "type": "character_switched",
+                "character": pack.to_dict(),
+            })
+            await self.system.ws_bridge.broadcast({"type": "reload_vrm"})
+            await self.system.ws_bridge.broadcast({
+                "type": "avatar_pose",
+                "phrase": pack.greeting,
+                "emotion": "happy",
+                "gesture": "wave",
+            })
+        return pack
 
     async def start(self) -> str:
         if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
@@ -735,6 +770,19 @@ class EphemeralOnboardingServer:
                 json.dumps({"status": "voice_ref_saved", "size_bytes": len(body)}).encode("utf-8"),
             )
 
+        if method == "GET" and path == "/api/characters":
+            chars = []
+            active_id = "kurisu"
+            if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
+                mgr = self.system.profiles.character_manager
+                chars = [c.to_dict() for c in mgr.list_characters()]
+                active_id = mgr.get_active_character_id()
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"active_id": active_id, "characters": chars}, ensure_ascii=False).encode("utf-8"),
+            )
+
         if method == "GET" and path == "/api/avatar.vrm":
             if not self.vrm_file_path.exists():
                 return "404 Not Found", "application/json", b'{"error":"no_vrm"}'
@@ -754,6 +802,64 @@ class EphemeralOnboardingServer:
             data: Dict[str, Any] = json.loads(body.decode("utf-8")) if body else {}
         except Exception:
             data = {}
+
+        if method == "POST" and path == "/api/character/switch":
+            target_id = str(data.get("id") or "").strip()
+            if not target_id:
+                return "400 Bad Request", "application/json", b'{"error":"missing_character_id"}'
+            pack = await self.switch_character(target_id)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "switched", "character": pack.to_dict()}, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/character/create":
+            name = str(data.get("name") or "").strip()
+            if not name:
+                return "400 Bad Request", "application/json", b'{"error":"missing_name"}'
+            soul_prompt = str(data.get("soul_prompt") or f"# SOUL.md — {name}\nEres {name}.")
+            voice_id = str(data.get("voice_id") or "es-ES-ElviraNeural")
+            voice_engine = str(data.get("voice_engine") or "edge")
+            dsp_preset = str(data.get("dsp_preset") or "clean")
+            greeting = str(data.get("greeting") or f"Hola, soy {name}. ¿En qué te ayudo?")
+            author = str(data.get("author") or "Usuario")
+            vrm_bytes = None
+            if data.get("vrm_base64"):
+                import base64
+                try:
+                    vrm_bytes = base64.b64decode(data["vrm_base64"])
+                except Exception:
+                    pass
+
+            mgr = self.system.profiles.character_manager
+            pack = mgr.create_custom_character(
+                name=name,
+                soul_prompt=soul_prompt,
+                voice_id=voice_id,
+                voice_engine=voice_engine,
+                dsp_preset=dsp_preset,
+                greeting=greeting,
+                author=author,
+                vrm_bytes=vrm_bytes,
+            )
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "created", "character": pack.to_dict()}, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/character/delete":
+            target_id = str(data.get("id") or "").strip()
+            if not target_id:
+                return "400 Bad Request", "application/json", b'{"error":"missing_character_id"}'
+            mgr = self.system.profiles.character_manager
+            deleted = mgr.delete_user_character(target_id)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "deleted" if deleted else "not_found"}).encode("utf-8"),
+            )
 
         if method == "POST" and path == "/api/chat":
             text = str(data.get("text", "")).strip()
