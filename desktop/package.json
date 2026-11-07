@@ -1,0 +1,14 @@
+{
+  "name": "amadeus-kurisu-desktop",
+  "version": "2.0.0",
+  "description": "Amadeus Kurisu Desktop Companion — Transparent VRM Overlay + Aero Soft Air Glass UI",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke-test",
+    "test": "node --test test/dodge.test.js"
+  },
+  "dependencies": {
+    "electron": "^33.2.0"
+  }
+}
