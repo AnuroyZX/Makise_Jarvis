@@ -110,6 +110,7 @@ class AmadeusSystem:
             screen=self.screen,
             app_launcher=self.toolkit.app_launcher,
         )
+        self.core.tool_dispatcher = self.tool_dispatcher
 
         # Bind all cross-module commands into Module 2 (Body)
         self.brain.bind_commands(self.core)

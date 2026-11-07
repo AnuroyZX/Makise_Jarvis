@@ -48,6 +48,8 @@ class WakeWordWhisperListener:
 
         self.state: ListenerState = ListenerState.STOPPED
         self.muted: bool = False
+        self.is_ptt_recording: bool = False
+        self._stop_ptt_flag: bool = False
         self._vosk_recognizer: Any = None
         self._whisper_model: Any = None
         self._last_whisper_use_ts: float = 0.0
@@ -187,6 +189,89 @@ class WakeWordWhisperListener:
                 return WhisperModel("small", device="cpu", compute_type="int8")
         except Exception:
             return None
+
+    def stop_ptt_recording(self) -> None:
+        """Signal an active Push-to-Talk microphone capture to finish immediately."""
+        self._stop_ptt_flag = True
+
+    async def record_and_transcribe_once(self, max_seconds: float = 9.0) -> str:
+        """
+        Capture microphone audio directly via `sounddevice` (16kHz 16-bit mono) with automatic
+        voice activity & silence detection, then transcribe via Zero-Key Google Speech (`es-ES`)
+        with local `faster-whisper` fallback. Costs 0 MB VRAM in default mode.
+        """
+        if self.is_ptt_recording:
+            self._stop_ptt_flag = True
+            return ""
+
+        self.is_ptt_recording = True
+        self._stop_ptt_flag = False
+
+        def _capture_pcm() -> bytes:
+            import sounddevice as sd
+
+            sample_rate = 16000
+            block_size = 1600  # 100ms per block
+            buf = bytearray()
+            spoke = False
+            silence_blocks = 0
+            max_blocks = int(max_seconds * 10)
+
+            try:
+                with sd.RawInputStream(
+                    samplerate=sample_rate,
+                    blocksize=block_size,
+                    dtype="int16",
+                    channels=1,
+                ) as stream:
+                    for idx in range(max_blocks):
+                        if self._stop_ptt_flag:
+                            break
+                        data, _ = stream.read(block_size)
+                        chunk = bytes(data)
+                        buf.extend(chunk)
+                        rms = self.compute_rms_energy(chunk)
+                        if rms >= 240.0:
+                            spoke = True
+                            silence_blocks = 0
+                        elif spoke:
+                            silence_blocks += 1
+                            # Stop automatically after 1.3s of silence once user finishes speaking
+                            if silence_blocks >= 13:
+                                break
+                        elif idx >= 45 and not spoke:
+                            # 4.5s of total silence with no speech
+                            break
+            except Exception:
+                return b""
+            return bytes(buf) if spoke or len(buf) > 6400 else b""
+
+        try:
+            pcm_bytes = await asyncio.to_thread(_capture_pcm)
+        finally:
+            self.is_ptt_recording = False
+            self._stop_ptt_flag = False
+
+        if not pcm_bytes:
+            return ""
+
+        # 1. Fast Zero-Key Spanish STT via SpeechRecognition (0 MB VRAM, ~0.4s latency)
+        def _google_stt() -> str:
+            try:
+                import speech_recognition as sr
+
+                rec = sr.Recognizer()
+                audio_data = sr.AudioData(pcm_bytes, 16000, 2)
+                return str(rec.recognize_google(audio_data, language="es-ES")).strip()
+            except Exception:
+                return ""
+
+        text = await asyncio.to_thread(_google_stt)
+        if text:
+            return text
+
+        # 2. Offline fallback via faster-whisper
+        return await self.transcribe_pcm_bytes(pcm_bytes)
 
     def unload_idle_models(self, force: bool = False) -> bool:
         """Unload faster-whisper from VRAM/RAM after idle timeout and trim Working Set."""

@@ -128,12 +128,86 @@ class SafeFileManager:
                 unique.append(c)
         return unique
 
+    def resolve_user_folder(self, alias: str = "desktop") -> Path:
+        """Resolve a user folder alias ('escritorio', 'descargas', 'documentos', etc.) to the existing Path on disk."""
+        a = alias.strip().lower().rstrip("/\\")
+        roots = self.get_allowed_roots()
+        folder_map = {
+            "escritorio": ("escritorio", "desktop"),
+            "desktop": ("desktop", "escritorio"),
+            "descargas": ("descargas", "downloads"),
+            "downloads": ("downloads", "descargas"),
+            "documentos": ("documentos", "documents"),
+            "documents": ("documents", "documentos"),
+            "imagenes": ("imágenes", "imagenes", "pictures"),
+            "imágenes": ("imágenes", "imagenes", "pictures"),
+            "pictures": ("pictures", "imágenes", "imagenes"),
+            "musica": ("música", "musica", "music"),
+            "música": ("música", "musica", "music"),
+            "music": ("music", "música", "musica"),
+            "videos": ("videos", "vídeos"),
+            "vídeos": ("vídeos", "videos"),
+        }
+        targets = folder_map.get(a, (a,))
+        # Check custom configured roots and _extra_roots first
+        for custom_root in [*(Path(c).resolve() for c in self.settings.allowed_fs_roots if Path(c).exists()), *self._extra_roots]:
+            if custom_root.name.lower() in targets:
+                return custom_root
+
+        matched: List[Path] = []
+        for r in roots:
+            if r.name.lower() in targets:
+                matched.append(r)
+        if matched:
+            for m in matched:
+                if "onedrive" in str(m).lower():
+                    return m
+            return matched[0]
+        return roots[0] if roots else Path.home()
+
+    def _normalize_input_path(self, raw_path: str | Path) -> Path:
+        """Translate Spanish/English folder aliases ('Escritorio/Prueba', 'Descargas', 'nota.txt') into full safe paths."""
+        if isinstance(raw_path, Path):
+            if raw_path.is_absolute():
+                return raw_path
+            raw_str = str(raw_path)
+        else:
+            raw_str = str(raw_path).strip().strip("\"'")
+
+        if not raw_str:
+            return self.resolve_user_folder("escritorio")
+
+        p = Path(raw_str).expanduser()
+        if p.is_absolute():
+            return p
+
+        parts = [pt for pt in raw_str.replace("\\", "/").split("/") if pt and pt != "."]
+        if not parts:
+            return self.resolve_user_folder("escritorio")
+
+        first_lower = parts[0].lower()
+        known_aliases = {
+            "escritorio", "desktop",
+            "descargas", "downloads",
+            "documentos", "documents",
+            "imagenes", "imágenes", "pictures",
+            "musica", "música", "music",
+            "videos", "vídeos",
+        }
+        if first_lower in known_aliases:
+            base = self.resolve_user_folder(first_lower)
+            return base.joinpath(*parts[1:]) if len(parts) > 1 else base
+
+        # Default bare relative paths (e.g. "Prueba" or "nota.txt") to the user's Desktop (or first allowed root)
+        base = self.resolve_user_folder("escritorio")
+        return base.joinpath(*parts)
+
     def validate_safe_path(self, raw_path: str | Path, must_exist: bool = False) -> Path:
         """
         Verify target path is strictly inside an allowed user root, has no reserved Windows names,
         and never touches Windows/Program Files directories.
         """
-        p = Path(raw_path).expanduser()
+        p = self._normalize_input_path(raw_path)
         resolved = p.resolve(strict=must_exist)
         res_lower = str(resolved).lower()
 
@@ -186,15 +260,33 @@ class SafeFileManager:
 
     def fs_create_file(self, file_path: str | Path, content: str = "") -> str:
         target = self.validate_safe_path(file_path, must_exist=False)
-        if target.exists():
-            raise FileExistsError(f"El archivo '{target}' ya existe; usa renombrar o mover.")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         self._record_journal(uuid.uuid4().hex[:8], "create_file", str(target), "")
         return f"Archivo creado: {target}"
 
     def fs_open(self, path: str | Path, dry_run: bool = False) -> str:
-        target = self.validate_safe_path(path, must_exist=True)
+        try:
+            target = self.validate_safe_path(path, must_exist=True)
+        except FileNotFoundError:
+            # Search across allowed roots (Desktop, Downloads, Documents) for matching file/folder name
+            query_name = Path(str(path).strip().strip("\"'")).name.lower()
+            found: Optional[Path] = None
+            for root in self.get_allowed_roots():
+                candidate = root / query_name
+                if candidate.exists():
+                    found = candidate
+                    break
+                for item in root.iterdir():
+                    if item.name.lower() == query_name or query_name in item.name.lower():
+                        found = item
+                        break
+                if found:
+                    break
+            if found is None:
+                raise FileNotFoundError(f"No encontré el archivo o carpeta '{path}' en tu Escritorio, Descargas ni Documentos.")
+            target = self.validate_safe_path(found, must_exist=True)
+
         if dry_run or os.name != "nt":
             return f"Abierto: {target}"
         os.startfile(str(target))  # type: ignore[attr-defined]

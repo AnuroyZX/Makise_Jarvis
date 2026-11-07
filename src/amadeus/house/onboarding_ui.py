@@ -603,13 +603,20 @@ class EphemeralOnboardingServer:
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
 
         if method == "GET" and path == "/api/test_qwen3.wav":
-            q_out = await self.system.voice.qwen3.synthesize(
-                "Hola Okabe. Soy el sistema Amadeus con el modelo Qwen tres de Makise Kurisu.",
-                speaker=self.system.settings.qwen3_speaker,
+            synth = await self.system.voice.synthesize(
+                "Hola Okabe. Soy el sistema Amadeus con la voz de Makise Kurisu. El Psy Kongroo.",
+                for_telegram_opus=False,
+                save_to_disk=False,
             )
-            if q_out.audio_bytes:
-                return "200 OK", "audio/wav", q_out.audio_bytes
-            return "500 Internal Server Error", "application/json", b'{"error":"qwen3_failed"}'
+            if synth.audio_bytes:
+                return "200 OK", synth.mime_type, synth.audio_bytes
+            return "500 Internal Server Error", "application/json", b'{"error":"voice_failed"}'
+
+        if method == "GET" and path == "/api/kikivoice_ref":
+            ref_file = self.system.data_dir / "kikivoice_ref.mp3"
+            if ref_file.exists():
+                return "200 OK", "audio/mpeg", ref_file.read_bytes()
+            return "404 Not Found", "application/json", b'{"error":"no_kikivoice_ref"}'
 
         if method == "GET" and path == "/api/kurisu_reference.mp3":
             from amadeus.config import get_config_dir
@@ -656,7 +663,10 @@ class EphemeralOnboardingServer:
                 return "200 OK", mime, self._last_audio_path.read_bytes()
             return "404 Not Found", "application/json", b'{"error":"no_audio"}'
 
-        data: Dict[str, Any] = json.loads(body.decode("utf-8")) if body else {}
+        try:
+            data: Dict[str, Any] = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            data = {}
 
         if method == "POST" and path == "/api/chat":
             text = str(data.get("text", "")).strip()

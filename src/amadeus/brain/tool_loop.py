@@ -68,6 +68,169 @@ class AmadeusToolDispatcher:
             pass
         return None
 
+    @staticmethod
+    def _extract_target_root(text_lower: str) -> str:
+        for alias in (
+            "descargas", "downloads",
+            "documentos", "documents",
+            "escritorio", "desktop",
+            "imágenes", "imagenes", "pictures",
+            "música", "musica", "music",
+            "videos", "vídeos",
+        ):
+            if re.search(rf"\b{re.escape(alias)}\b", text_lower):
+                return alias
+        return "escritorio"
+
+    async def try_natural_language_action(
+        self, user_text: str
+    ) -> Optional[tuple[str, Optional[PendingFileOperation]]]:
+        """
+        Deterministically detect and execute Spanish/English natural-language desktop commands
+        (screen analysis, creating folders/files, listing folders, opening files/apps, deleting/renaming)
+        so actions always execute reliably even with the Zero-Config Free LLM.
+        """
+        clean = user_text.strip()
+        lower = clean.lower()
+
+        # 1. Screen Look / Analysis
+        if any(
+            kw in lower
+            for kw in (
+                "qué ves en mi pantalla",
+                "que ves en mi pantalla",
+                "mira mi pantalla",
+                "analiza mi pantalla",
+                "analizar mi pantalla",
+                "qué hay en mi pantalla",
+                "que hay en mi pantalla",
+            )
+        ):
+            res = await self.screen.analyze_current_screen(clean)
+            return res, None
+
+        # 2. List files in a folder ("Lista mis archivos recientes en Descargas", "ver descargas", "qué archivos hay en escritorio")
+        if re.search(
+            r"\b(lista|listar|muestra|mostrar|ver|qué archivos|que archivos)\b.*\b(descargas|downloads|escritorio|desktop|documentos|documents|imágenes|imagenes|música|musica|videos)\b",
+            lower,
+        ):
+            root_alias = self._extract_target_root(lower)
+            try:
+                items = self.file_ops.fs_list(root_alias)
+                count = len(items)
+                preview = "\n".join(f"• {name}" for name in items[:25]) or "(Carpeta vacía)"
+                reply = (
+                    f"[emotion:analytical] [gesture:nod] Encontré {count} elementos en tu carpeta {root_alias.capitalize()}.\n"
+                    f"---DETALLE---\n📂 {root_alias.capitalize()} ({count} elementos):\n{preview}"
+                )
+                return reply, None
+            except Exception as exc:
+                return f"[emotion:serious] No pude listar la carpeta {root_alias}: {exc}", None
+
+        # 3. Create Folder ("Crea una carpeta llamada Prueba en Escritorio", "crea una carpeta Prueba")
+        m_folder = re.search(
+            r"\b(?:crea|crear|haz|hacer|nueva)\s+(?:una\s+|la\s+)?carpeta\s+(?:llamada\s+|con\s+nombre\s+)?[\"']?([^\"'\n]+?)[\"']?(?:\s+en\s+(?:el\s+|la\s+|mi\s+|mis\s+)?(escritorio|desktop|documentos|documents|descargas|downloads|imágenes|imagenes|música|musica|videos))?$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_folder:
+            folder_name = m_folder.group(1).strip().strip("\"'.,")
+            # Strip trailing "en escritorio" if captured inside group 1
+            folder_name = re.sub(
+                r"\s+en\s+(?:el\s+|la\s+|mi\s+)?(?:escritorio|desktop|documentos|documents|descargas|downloads).*$",
+                "",
+                folder_name,
+                flags=re.IGNORECASE,
+            ).strip()
+            root_alias = (m_folder.group(2) or self._extract_target_root(lower)).lower()
+            try:
+                msg = self.file_ops.fs_create_folder(f"{root_alias}/{folder_name}")
+                return (
+                    f"[emotion:smug] [gesture:nod] Listo, he creado la carpeta '{folder_name}' en tu {root_alias.capitalize()}.\n---DETALLE---\n✅ {msg}",
+                    None,
+                )
+            except Exception as exc:
+                return f"[emotion:serious] No pude crear la carpeta '{folder_name}': {exc}", None
+
+        # 4. Create File ("Crea un archivo nota.txt en Escritorio con Hola mundo", "crear archivo prueba.txt")
+        m_file = re.search(
+            r"\b(?:crea|crear|haz|hacer|escribe|escribir|nuevo)\s+(?:un\s+|el\s+)?archivo(?:\s+de\s+texto)?\s+(?:llamado\s+)?[\"']?([^\s\"']+?)[\"']?(?:\s+en\s+(?:el\s+|la\s+|mi\s+)?(escritorio|desktop|documentos|documents|descargas|downloads))?(?:\s+(?:con\s+el\s+texto|con\s+contenido|que\s+diga|con)\s+(.+))?$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_file:
+            file_name = m_file.group(1).strip().strip("\"'.,")
+            if "." not in file_name:
+                file_name += ".txt"
+            root_alias = (m_file.group(2) or self._extract_target_root(lower)).lower()
+            content = (m_file.group(3) or "Creado por Makise Kurisu (Amadeus System).").strip().strip("\"'")
+            try:
+                msg = self.file_ops.fs_create_file(f"{root_alias}/{file_name}", content=content)
+                return (
+                    f"[emotion:smug] [gesture:nod] He creado el archivo '{file_name}' en tu {root_alias.capitalize()}.\n---DETALLE---\n✅ {msg}",
+                    None,
+                )
+            except Exception as exc:
+                return f"[emotion:serious] No pude crear el archivo '{file_name}': {exc}", None
+
+        # 5. Open File, Folder, or Application ("Abre bloc de notas", "Abre la carpeta Descargas", "Abre nota.txt")
+        m_open = re.search(
+            r"^\s*(?:por\s+favor\s+)?(?:oye\s+kurisu\s*,?\s*)?(?:abre|abrir|ejecuta|ejecutar|inicia|iniciar|lanza|lanzar)\s+(?:el\s+|la\s+|los\s+|las\s+|mi\s+|mis\s+)?(?:aplicaci[oó]n\s+|programa\s+|archivo\s+|carpeta\s+)?[\"']?(.+?)[\"']?\.?\s*$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_open:
+            target_raw = m_open.group(1).strip().strip("\"'.,")
+            target_lower = target_raw.lower()
+
+            # 5a. Is it a known user folder alias ("descargas", "escritorio", "documentos")?
+            if target_lower in (
+                "escritorio", "desktop",
+                "descargas", "downloads",
+                "documentos", "documents",
+                "imágenes", "imagenes", "pictures",
+                "música", "musica", "music",
+                "videos", "vídeos",
+            ):
+                try:
+                    msg = self.file_ops.fs_open(target_lower)
+                    return f"[emotion:neutral] [gesture:nod] Abriendo tu carpeta {target_raw.capitalize()}.\n---DETALLE---\n📂 {msg}", None
+                except Exception as exc:
+                    return f"[emotion:serious] No pude abrir la carpeta {target_raw}: {exc}", None
+
+            # 5b. Is it an application ("bloc de notas", "calculadora", "chrome", "vscode", etc.)?
+            app = self.app_launcher.find_app(target_lower)
+            if app is not None and "." not in target_lower:
+                msg = self.app_launcher.launch(target_lower)
+                return f"[emotion:smug] [gesture:nod] {msg}", None
+
+            # 5c. Otherwise open file or folder in Desktop / Downloads / Documents
+            try:
+                msg = self.file_ops.fs_open(target_raw)
+                return f"[emotion:neutral] [gesture:nod] He abierto '{target_raw}' en tu escritorio.\n---DETALLE---\n📄 {msg}", None
+            except Exception as exc:
+                if app is not None:
+                    msg = self.app_launcher.launch(target_lower)
+                    return f"[emotion:smug] [gesture:nod] {msg}", None
+                return f"[emotion:serious] {exc}", None
+
+        # 6. Delete file/folder (with confirmation card)
+        m_del = re.search(
+            r"\b(?:elimina|eliminar|borra|borrar|manda\s+a\s+la\s+papelera)\s+(?:el\s+|la\s+)?(?:archivo\s+|carpeta\s+)?[\"']?([^\"'\n]+?)[\"']?$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_del:
+            target_raw = m_del.group(1).strip().strip("\"'.,")
+            try:
+                op = self.file_ops.request_delete([target_raw])
+                self.last_pending_operation = op
+                return f"[emotion:serious] {op.summary}", op
+            except Exception as exc:
+                return f"[emotion:serious] No encontré '{target_raw}' para eliminar: {exc}", None
+
+        return None
+
     async def execute_tool_call(
         self, tool_name: str, args: Dict[str, Any]
     ) -> tuple[str, Optional[PendingFileOperation]]:

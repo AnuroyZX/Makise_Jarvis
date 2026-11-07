@@ -88,6 +88,7 @@ class AmadeusAgentCore:
         memory: Optional[MemoryPort] = None,
         identity: Optional[IdentityPort] = None,
         skills: Optional[SkillsPort] = None,
+        tool_dispatcher: Optional[Any] = None,
         max_session_history: int = 24,
     ) -> None:
         self.governor = governor
@@ -95,6 +96,7 @@ class AmadeusAgentCore:
         self.memory = memory
         self.identity = identity
         self.skills = skills
+        self.tool_dispatcher = tool_dispatcher
         # Bounded history per ECC Resource Efficiency rules
         self._history: Deque[AgentMessage] = deque(maxlen=max_session_history)
         self._avatar_subscribers: List[Callable[[AvatarEvent], Awaitable[None]]] = []
@@ -178,6 +180,38 @@ class AmadeusAgentCore:
                 self._history.append(reply)
                 return reply
 
+        # 1b. Deterministic Natural-Language Action Dispatcher (Module 7: Files, Apps, Screen)
+        if self.tool_dispatcher is not None:
+            nl_result = await self.tool_dispatcher.try_natural_language_action(text)
+            if nl_result is not None:
+                action_text, pending_op = nl_result
+                meta: Dict[str, Any] = {}
+                if pending_op is not None:
+                    meta["pending_op_id"] = pending_op.op_id
+                    meta["pending_summary"] = pending_op.summary
+                reply = AgentMessage(
+                    role="assistant",
+                    content=action_text,
+                    channel=incoming.channel,
+                    user_id=incoming.user_id,
+                    emotion=EmotionState.ANALYTICAL,
+                    metadata=meta,
+                )
+                self._history.append(incoming)
+                self._history.append(reply)
+                if self.memory is not None:
+                    await self.memory.record_interaction(
+                        incoming.user_id, incoming.content, reply.content
+                    )
+                await self._emit_avatar_event(
+                    AvatarEvent(
+                        event_type="emotion_change",
+                        emotion=reply.emotion,
+                        text=reply.content,
+                    )
+                )
+                return reply
+
         # 2. Retrieve memory context if Module 5 is connected
         memory_ctx = ""
         if self.memory is not None:
@@ -189,6 +223,10 @@ class AmadeusAgentCore:
             if self.skills is not None
             else ""
         )
+        if self.tool_dispatcher is not None:
+            tools_instr = self.tool_dispatcher.build_tools_prompt_instructions()
+            skills_ctx = f"{skills_ctx}\n\n{tools_instr}".strip()
+
         urgent = any(
             kw in text.lower()
             for kw in ("urgente", "rápido", "error", "bug", "producción")
@@ -212,6 +250,20 @@ class AmadeusAgentCore:
                 system_prompt=system_prompt,
                 power_mode=self.governor.mode,
             )
+            if self.tool_dispatcher is not None:
+                tool_call = self.tool_dispatcher.extract_tool_call(reply.content)
+                if tool_call is not None:
+                    t_name = str(tool_call.get("tool") or "")
+                    t_args = tool_call.get("args") or {}
+                    t_res, pending_op = await self.tool_dispatcher.execute_tool_call(
+                        t_name, t_args
+                    )
+                    if pending_op is not None:
+                        reply.metadata["pending_op_id"] = pending_op.op_id
+                        reply.metadata["pending_summary"] = pending_op.summary
+                        reply.content = f"[emotion:serious] {pending_op.summary}"
+                    else:
+                        reply.content = f"[emotion:smug] [gesture:nod] Listo.\n---DETALLE---\n{t_res}"
         else:
             reply = AgentMessage(
                 role="assistant",

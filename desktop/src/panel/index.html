@@ -111,27 +111,31 @@
   </header>
 
   <div class="grid">
-    <!-- Left Column: Live Chat, Screen Analysis & File Operations -->
+    <!-- Left Column: Live Chat, Mic, Screen Analysis & File Operations -->
     <div class="card">
       <h2>💬 Consola Directa con Makise Kurisu</h2>
       <div id="chatBox">
-        <div class="msg msg-kurisu"><b>Kurisu:</b> Sistema Amadeus en línea. Puedes hablarme desde aquí o directamente con los botones bajo mi avatar 3D en tu escritorio.</div>
+        <div class="msg msg-kurisu"><b>Kurisu:</b> Sistema Amadeus en línea. Puedes hablarme por voz (🎙️), escribirme o probar las acciones de escritorio y archivos abajo.</div>
       </div>
       <div class="chat-row">
-        <input id="chatInput" placeholder="Ej: '¿Qué ves en mi pantalla?', 'Crea una carpeta Prueba en Escritorio'..." style="margin-top:0;">
+        <button class="secondary" id="panelMicBtn" onclick="togglePanelMic()" title="Hablar por micrófono">🎙️ Micro</button>
+        <input id="chatInput" placeholder="Ej: 'Crea una carpeta Prueba en Escritorio', 'Abre bloc de notas'..." style="margin-top:0;">
         <button onclick="sendChatMessage()">Enviar</button>
       </div>
       <div class="btn-bar">
         <button class="secondary" onclick="quickPrompt('¿Qué ves en mi pantalla ahora mismo?')">👁️ Analizar mi Pantalla</button>
         <button class="secondary" onclick="quickPrompt('Lista mis archivos recientes en Descargas')">📂 Ver Descargas</button>
-        <button class="secondary" onclick="quickPrompt('/deshacer')">↩️ Deshacer Archivo</button>
+        <button class="secondary" onclick="quickPrompt('Crea una carpeta Prueba_Amadeus en Escritorio')">📁 Crear Carpeta</button>
+        <button class="secondary" onclick="quickPrompt('Crea un archivo bitacora_kurisu.txt en Escritorio con El Psy Kongroo')">📝 Crear Archivo</button>
+        <button class="secondary" onclick="quickPrompt('Abre bloc de notas')">🪟 Abrir App</button>
+        <button class="secondary" onclick="quickPrompt('/deshacer')">↩️ Deshacer</button>
         <button class="secondary" onclick="interruptSpeech()">⏹️ Callar Voz</button>
       </div>
     </div>
 
-    <!-- Right Column: 1-Click Profile, DSP Filter & 3D Avatar -->
+    <!-- Right Column: 1-Click Profile, DSP Filter, Voice Upload & 3D Avatar -->
     <div class="card">
-      <h2>🎭 Personaje, Filtro de Voz DSP y Avatar 3D (1 Clic)</h2>
+      <h2>🎭 Personaje, Voz y Avatar 3D (1 Clic)</h2>
       <label>Tu Nombre / Apodo</label>
       <input id="user_display_name" placeholder="Okabe">
 
@@ -152,19 +156,32 @@
 
       <div class="btn-bar" style="margin-top:10px;">
         <button style="flex:1;" onclick="saveConfig()">💾 Aplicar Cambios</button>
-        <button class="secondary" onclick="testQwen3Voice()">🔊 Probar Voz</button>
+        <button class="secondary" id="testVoiceBtn" onclick="testActiveVoice()">🔊 Probar Voz en Kurisu 3D</button>
       </div>
 
+      <!-- Direct Audio Upload (KikiVoice / Custom Clip) with visible feedback & preview player -->
+      <label style="margin-top:10px;">🎤 Cargar Audio de Voz (KikiVoice .mp3 / .wav)</label>
+      <div class="btn-bar" style="margin-top:4px; align-items:center;">
+        <label class="btn-upload" style="margin-top:0;">
+          📤 Subir Audio (.mp3/.wav)
+          <input id="kikiFileInput" type="file" accept=".mp3,.wav,.ogg,.m4a" style="display:none" onchange="uploadKikiVoiceRef(this)">
+        </label>
+        <button class="secondary" id="testKikiBtn" onclick="testKikiVoiceOnAvatar()">🎭 Probar Audio Subido en 3D</button>
+      </div>
+      <div id="kikiMsg" style="font-size:0.78rem; font-weight:600; color:var(--sky-600); margin-top:5px;"></div>
+      <audio id="kikiPreviewAudio" controls style="width:100%; height:30px; margin-top:5px; display:none;"></audio>
+
+      <!-- VRM & Pose Test Buttons -->
       <div class="btn-bar" style="margin-top:10px;">
         <label class="btn-upload" style="margin-top:0;">
           📂 Cambiar .VRM
-          <input type="file" accept=".vrm" style="display:none" onchange="uploadVrm(this.files[0])">
+          <input id="vrmFileInput" type="file" accept=".vrm" style="display:none" onchange="uploadVrm(this)">
         </label>
-        <button class="secondary" onclick="triggerAvatar('smug', 'wave')">👋 Saludar</button>
-        <button class="secondary" onclick="triggerAvatar('analytical', 'think')">🤔 Pensar</button>
-        <button class="secondary" onclick="triggerAvatar('tsundere_blush', 'cross_arms')">😤 Tsundere</button>
+        <button class="secondary" onclick="triggerAvatar('smug', 'wave', '¡Hola! Sistema Amadeus en línea.')">👋 Saludar</button>
+        <button class="secondary" onclick="triggerAvatar('analytical', 'think', 'Hmm... déjame analizar las variables.')">🤔 Pensar</button>
+        <button class="secondary" onclick="triggerAvatar('tsundere_blush', 'cross_arms', '¡N-no es que lo haga por ti, baka!')">😤 Tsundere</button>
       </div>
-      <div id="vrmMsg" style="font-size:0.76rem; color:var(--muted); margin-top:6px;"></div>
+      <div id="vrmMsg" style="font-size:0.78rem; font-weight:600; color:var(--sky-600); margin-top:6px;"></div>
       <audio id="refAudio" style="display:none;"></audio>
     </div>
 
@@ -194,7 +211,7 @@
           <select id="voice_engine">
             <option value="qwen3_kurisu">🌟 Qwen3-TTS Makise Kurisu Oficial (Gratis sin API Key)</option>
             <option value="gemini_kurisu">✨ Gemini 2.5 TTS Leda (Requiere Gemini API Key)</option>
-            <option value="fish">🐟 Fish Audio Oficial (Modelo 8750a78673b44b568c08e23eebcea67e)</option>
+            <option value="fish">🐟 Fish Audio Oficial (Modelo 8750a78673b44b568c08e23eebcea67e o KikiVoice)</option>
             <option value="edge">⚡ Edge-TTS Joven Instantáneo (0 latencia + Filtro DSP)</option>
           </select>
 
@@ -207,16 +224,7 @@
         </div>
 
         <div>
-          <label>Muestra de Voz de KikiVoice (.mp3 / .wav de 10-15s)</label>
-          <div class="btn-bar" style="margin-top:4px;">
-            <label class="btn-upload" style="margin-top:0;">
-              🎤 Subir Audio de KikiVoice (.mp3/.wav)
-              <input type="file" accept=".mp3,.wav" style="display:none" onchange="uploadKikiVoiceRef(this.files[0])">
-            </label>
-            <span id="kikiMsg" style="font-size:0.75rem; color:var(--muted); align-self:center;"></span>
-          </div>
-
-          <label>Fish Audio API Key (Opcional)</label>
+          <label>Fish Audio API Key (Opcional para clonar tu muestra de KikiVoice en vivo)</label>
           <input id="fish_audio_api_key" type="password" placeholder="Opcional: clave de fish.audio">
 
           <label>Memoria Aprendida del Usuario (`USER.md`)</label>
@@ -282,8 +290,23 @@ async function initPanel() {
         const msg = JSON.parse(ev.data);
         if (msg.type === 'reply_chunk') {
           appendChat('msg-kurisu', `Kurisu [${msg.emotion}]`, msg.sentence);
+          const vBtn = document.getElementById('testVoiceBtn');
+          if (vBtn) vBtn.textContent = '🔊 Probar Voz en Kurisu 3D';
         } else if (msg.type === 'reply_detail' && msg.detail) {
           appendChat('msg-kurisu', 'Detalle', msg.detail);
+        } else if (msg.type === 'mic_transcript') {
+          appendChat('msg-user', '🎙️ Tú (Voz)', msg.text);
+        } else if (msg.type === 'listening') {
+          const micBtn = document.getElementById('panelMicBtn');
+          if (micBtn) {
+            if (msg.state === 'recording') {
+              micBtn.textContent = '🔴 Enviar Voz';
+            } else if (msg.state === 'thinking') {
+              micBtn.textContent = '⏳ Pensando...';
+            } else {
+              micBtn.textContent = '🎙️ Micro';
+            }
+          }
         } else if (msg.type === 'confirm_request') {
           if (confirm(`Kurisu solicita permiso:\n\n${msg.summary}\n\n¿Confirmar operación?`)) {
             ws.send(JSON.stringify({ type: 'confirm', id: msg.id, approved: true }));
@@ -294,26 +317,42 @@ async function initPanel() {
       };
     }
   }
-  const r = await fetch(`${baseUrl}/api/state`);
-  const d = await r.json();
-  document.getElementById('statusBadge').textContent =
-    `RAM: ${d.rss_mb} MB | Cerebro: ${d.active_provider}`;
-  document.getElementById('user_display_name').value = d.user_display_name || '';
-  document.getElementById('active_profile').value = d.active_profile || 'kurisu_amadeus';
-  document.getElementById('dsp_preset').value = d.dsp_preset || 'amadeus_screen';
-  document.getElementById('active_brain').value = d.active_brain || 'auto';
-  document.getElementById('voice_engine').value = d.voice_engine || 'qwen3_kurisu';
-  document.getElementById('qwen3_speaker').value = d.qwen3_speaker || 'amadeus';
-  document.getElementById('userMdEditor').value = d.user_md || '';
-  document.getElementById('vrmMsg').textContent = d.has_vrm
-    ? '✅ Modelo avatar.vrm activo en tu escritorio.'
-    : '⚠️ Aún no hay archivo .vrm cargado.';
-  const kikiEl = document.getElementById('kikiMsg');
-  if (kikiEl) {
-    kikiEl.textContent = d.has_kikivoice_ref
-      ? '✅ Muestra KikiVoice guardada'
-      : 'Sube aquí un clip .mp3/.wav de 10-15s';
+  try {
+    const r = await fetch(`${baseUrl}/api/state`);
+    const d = await r.json();
+    document.getElementById('statusBadge').textContent =
+      `RAM: ${d.rss_mb} MB | Cerebro: ${d.active_provider}`;
+    document.getElementById('user_display_name').value = d.user_display_name || '';
+    document.getElementById('active_profile').value = d.active_profile || 'kurisu_amadeus';
+    document.getElementById('dsp_preset').value = d.dsp_preset || 'amadeus_screen';
+    document.getElementById('active_brain').value = d.active_brain || 'auto';
+    document.getElementById('voice_engine').value = d.voice_engine || 'qwen3_kurisu';
+    document.getElementById('qwen3_speaker').value = d.qwen3_speaker || 'amadeus';
+    document.getElementById('userMdEditor').value = d.user_md || '';
+    document.getElementById('vrmMsg').textContent = d.has_vrm
+      ? '✅ Modelo avatar.vrm activo en tu escritorio.'
+      : '⚠️ Aún no hay archivo .vrm cargado.';
+    const kikiEl = document.getElementById('kikiMsg');
+    const kikiPlayer = document.getElementById('kikiPreviewAudio');
+    if (d.has_kikivoice_ref) {
+      kikiEl.textContent = '✅ Muestra de audio KikiVoice guardada y lista.';
+      kikiPlayer.src = `${baseUrl}/api/kikivoice_ref?t=${Date.now()}`;
+      kikiPlayer.style.display = 'block';
+    } else {
+      kikiEl.textContent = 'Sube un clip .mp3 o .wav de 10-15s para escucharlo o probarlo en el Avatar 3D.';
+      kikiPlayer.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Error loading state:', err);
   }
+}
+
+function togglePanelMic() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    appendChat('msg-kurisu', 'Sistema', 'Conectando al núcleo de voz...');
+    return;
+  }
+  ws.send(JSON.stringify({ type: 'mic_toggle' }));
 }
 
 function sendChatMessage() {
@@ -335,48 +374,100 @@ function quickPrompt(text) {
 function interruptSpeech() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'interrupt' }));
+    appendChat('msg-kurisu', 'Sistema', '⏹️ Voz detenida.');
   }
 }
 
-function triggerAvatar(emotion, gesture) {
+function triggerAvatar(emotion, gesture, phrase) {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'avatar_pose', emotion, gesture }));
+    ws.send(JSON.stringify({ type: 'avatar_pose', emotion, gesture, phrase }));
+    document.getElementById('vrmMsg').textContent = `✨ Pose enviada al Avatar 3D: ${emotion} (${gesture})`;
   }
 }
 
-function testQwen3Voice() {
+async function testActiveVoice() {
+  const vBtn = document.getElementById('testVoiceBtn');
+  if (vBtn) vBtn.textContent = '⏳ Generando voz...';
+  appendChat('msg-kurisu', 'Sistema', '🔊 Sintetizando prueba de voz para Makise Kurisu 3D...');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'test_voice', mode: 'active' }));
+    return;
+  }
   const el = document.getElementById('refAudio');
   el.src = `${baseUrl}/api/test_qwen3.wav?t=${Date.now()}`;
-  el.play().catch(() => {});
-}
-
-async function uploadVrm(file) {
-  if (!file) return;
-  document.getElementById('vrmMsg').textContent = `Subiendo ${file.name}...`;
-  const buf = await file.arrayBuffer();
-  const r = await fetch(`${baseUrl}/api/upload_vrm`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/octet-stream'},
-    body: buf
+  el.play().finally(() => {
+    if (vBtn) vBtn.textContent = '🔊 Probar Voz en Kurisu 3D';
   });
-  document.getElementById('vrmMsg').textContent = r.ok
-    ? '✅ Modelo .vrm actualizado en vivo.'
-    : '❌ Error al subir .vrm';
 }
 
-async function uploadKikiVoiceRef(file) {
+function testKikiVoiceOnAvatar() {
+  const kikiPlayer = document.getElementById('kikiPreviewAudio');
+  if (kikiPlayer.style.display === 'none') {
+    alert('Primero sube un archivo de audio (.mp3 o .wav) con el botón "📤 Subir Audio".');
+    return;
+  }
+  appendChat('msg-kurisu', 'Sistema', '🎭 Reproduciendo tu audio subido en el Avatar 3D con sincronización labial...');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'test_voice', mode: 'kikivoice_ref' }));
+  }
+}
+
+async function uploadVrm(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  const msgEl = document.getElementById('vrmMsg');
+  msgEl.textContent = `⏳ Subiendo modelo ${file.name}...`;
+  try {
+    const buf = await file.arrayBuffer();
+    const r = await fetch(`${baseUrl}/api/upload_vrm`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/octet-stream'},
+      body: buf
+    });
+    if (r.ok) {
+      const kb = Math.round(file.size / 1024);
+      msgEl.textContent = `✅ Modelo "${file.name}" (${kb} KB) cargado y actualizado en vivo.`;
+      appendChat('msg-kurisu', 'Sistema', `✅ Nuevo modelo 3D cargado: ${file.name}`);
+    } else {
+      msgEl.textContent = '❌ Error al subir archivo .vrm';
+    }
+  } catch (err) {
+    msgEl.textContent = `❌ Error de red al subir .vrm: ${err.message}`;
+  } finally {
+    inputEl.value = '';
+  }
+}
+
+async function uploadKikiVoiceRef(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
   if (!file) return;
   const kikiEl = document.getElementById('kikiMsg');
-  kikiEl.textContent = `Subiendo ${file.name}...`;
-  const buf = await file.arrayBuffer();
-  const r = await fetch(`${baseUrl}/api/upload_voice_ref`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/octet-stream'},
-    body: buf
-  });
-  kikiEl.textContent = r.ok
-    ? '✅ Muestra KikiVoice guardada'
-    : '❌ Error al guardar muestra';
+  const kikiPlayer = document.getElementById('kikiPreviewAudio');
+  kikiEl.textContent = `⏳ Subiendo audio "${file.name}"...`;
+  try {
+    const buf = await file.arrayBuffer();
+    const r = await fetch(`${baseUrl}/api/upload_voice_ref`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/octet-stream'},
+      body: buf
+    });
+    if (r.ok) {
+      const kb = Math.max(1, Math.round(file.size / 1024));
+      kikiEl.textContent = `✅ Audio "${file.name}" (${kb} KB) cargado. Puedes escucharlo abajo o probarlo en 3D:`;
+      kikiPlayer.src = `${baseUrl}/api/kikivoice_ref?t=${Date.now()}`;
+      kikiPlayer.style.display = 'block';
+      appendChat('msg-kurisu', 'Sistema', `🎤 Audio de voz "${file.name}" (${kb} KB) guardado correctamente.`);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'test_voice', mode: 'kikivoice_ref' }));
+      }
+    } else {
+      kikiEl.textContent = '❌ Error al guardar muestra de audio';
+    }
+  } catch (err) {
+    kikiEl.textContent = `❌ Error al subir audio: ${err.message}`;
+  } finally {
+    inputEl.value = '';
+  }
 }
 
 async function saveConfig() {
@@ -406,7 +497,7 @@ async function saveConfig() {
     const el = document.getElementById(f);
     if (el) el.value = '';
   }
-  alert(d.warning ? `Guardado, pero: ${d.warning}` : 'Cambios aplicados.');
+  appendChat('msg-kurisu', 'Sistema', d.warning ? `⚠️ Guardado con aviso: ${d.warning}` : '💾 Configuración y filtro DSP aplicados en vivo.');
   initPanel();
 }
 
@@ -417,7 +508,7 @@ async function saveUserMd() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({content})
   });
-  alert('USER.md actualizado.');
+  appendChat('msg-kurisu', 'Sistema', '💾 Perfil USER.md actualizado.');
 }
 
 initPanel();

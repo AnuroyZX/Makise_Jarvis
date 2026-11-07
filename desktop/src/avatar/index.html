@@ -631,33 +631,9 @@ document.getElementById('quickInput').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') window.submitQuickInput();
 });
 
-let activeRecognizer = null;
 window.toggleVoiceMic = () => {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const btn = document.getElementById('micBtn');
-  if (!SR) {
-    window.toggleQuickBar();
-    return;
-  }
-  if (activeRecognizer) {
-    activeRecognizer.stop();
-    return;
-  }
-  activeRecognizer = new SR();
-  activeRecognizer.lang = 'es-ES';
-  activeRecognizer.interimResults = false;
-  activeRecognizer.onresult = (ev) => {
-    const text = ev.results[0][0].transcript.trim();
-    if (text && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'user_text', text }));
-    }
-  };
-  activeRecognizer.onend = () => {
-    activeRecognizer = null;
-    if (btn) btn.textContent = '🎙️ Micro';
-  };
-  if (btn) btn.textContent = '🔴 Escuchando';
-  activeRecognizer.start();
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'mic_toggle' }));
 };
 
 window.toggleQuickBar = () => {
@@ -711,6 +687,11 @@ async function initConnection() {
     } else if (msg.type === 'avatar_pose') {
       applyEmotion(msg.emotion);
       triggerGesture(msg.gesture);
+      if (msg.phrase) {
+        spawnLateralDialog(msg.phrase, 3200);
+      }
+    } else if (msg.type === 'mic_transcript') {
+      spawnLateralDialog(`🗣️ Tú: "${msg.text}"`, 2600);
     } else if (msg.type === 'interrupt') {
       audioQueue.length = 0;
       audioEl.pause();
@@ -739,15 +720,19 @@ async function initConnection() {
       document.getElementById('confirmCard').style.display = 'block';
     } else if (msg.type === 'listening') {
       const pill = document.getElementById('statePill');
+      const micBtn = document.getElementById('micBtn');
       if (msg.state === 'thinking') {
         pill.textContent = '✨ Pensando...';
         pill.style.display = 'block';
+        if (micBtn) micBtn.textContent = '🎙️ Micro';
         triggerGesture('think');
       } else if (msg.state === 'recording') {
-        pill.textContent = '🎙️ Escuchando...';
+        pill.textContent = '🎙️ Habla ahora... (clic en Micro para enviar)';
         pill.style.display = 'block';
+        if (micBtn) micBtn.textContent = '🔴 Enviar';
       } else {
         pill.style.display = 'none';
+        if (micBtn) micBtn.textContent = '🎙️ Micro';
       }
     }
   };
@@ -755,6 +740,8 @@ async function initConnection() {
   window.amadeusDesktop.onShortcutEvent((action) => {
     if (action === 'toggle-input') {
       window.toggleQuickBar();
+    } else if (action === 'push-to-talk') {
+      window.toggleVoiceMic();
     } else if (action === 'look-screen') {
       window.triggerScreenLook();
     }

@@ -156,13 +156,28 @@ class AmadeusWebSocketBridge:
             return
 
         if msg_type == "avatar_pose":
+            emo = str(data.get("emotion", "neutral"))
+            gest = str(data.get("gesture", "wave"))
+            phrase = str(data.get("phrase") or "").strip()
             await self.broadcast(
                 {
                     "type": "avatar_pose",
-                    "emotion": str(data.get("emotion", "neutral")),
-                    "gesture": str(data.get("gesture", "wave")),
+                    "emotion": emo,
+                    "gesture": gest,
+                    "phrase": phrase,
                 }
             )
+            return
+
+        if msg_type == "mic_toggle":
+            if self.system.listener.is_ptt_recording:
+                self.system.listener.stop_ptt_recording()
+                return
+            asyncio.create_task(self._run_ptt_mic_turn())
+            return
+
+        if msg_type == "test_voice":
+            asyncio.create_task(self._run_voice_test(str(data.get("mode") or "active")))
             return
 
         if msg_type == "interrupt":
@@ -202,6 +217,85 @@ class AmadeusWebSocketBridge:
                 return
             await self.process_and_stream_turn(text)
 
+    async def _run_ptt_mic_turn(self) -> None:
+        """Record user speech from Windows microphone and stream Kurisu's reply."""
+        if self._current_turn_id is not None:
+            self.interrupt_current_turn()
+            await self.broadcast({"type": "interrupt", "turn_id": self._current_turn_id})
+
+        await self.broadcast({"type": "listening", "state": "recording"})
+        transcript = await self.system.listener.record_and_transcribe_once(max_seconds=9.0)
+        if not transcript:
+            await self.broadcast({"type": "listening", "state": "idle"})
+            await self.broadcast(
+                {
+                    "type": "reply_chunk",
+                    "turn_id": uuid.uuid4().hex[:8],
+                    "index": 0,
+                    "total": 1,
+                    "sentence": "No logré escuchar tu voz en el micrófono. Habla un poco más cerca e inténtalo de nuevo.",
+                    "emotion": "neutral",
+                    "gesture": "think",
+                    "audio_b64": "",
+                    "mime": "audio/mpeg",
+                }
+            )
+            return
+
+        await self.broadcast({"type": "mic_transcript", "text": transcript})
+        await self.process_and_stream_turn(transcript)
+
+    async def _run_voice_test(self, mode: str = "active") -> None:
+        """Synthesize or play a voice test and broadcast it directly to the 3D Avatar + Panel."""
+        turn_id = uuid.uuid4().hex[:8]
+        self._current_turn_id = turn_id
+        self._cancel_current_turn = False
+
+        if mode == "kikivoice_ref":
+            ref_file = self.system.data_dir / "kikivoice_ref.mp3"
+            if ref_file.exists():
+                audio_bytes = ref_file.read_bytes()
+                audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+                await self.broadcast(
+                    {
+                        "type": "reply_chunk",
+                        "turn_id": turn_id,
+                        "index": 0,
+                        "total": 1,
+                        "sentence": "Reproduciendo tu muestra de voz subida de KikiVoice en el avatar 3D.",
+                        "emotion": "smug",
+                        "gesture": "wave",
+                        "audio_b64": audio_b64,
+                        "mime": "audio/mpeg",
+                        "provider": "kikivoice_ref",
+                    }
+                )
+                return
+
+        test_sentence = "Hola Okabe. Sistema Amadeus en línea. Prueba de sincronización vocal completada. El Psy Kongroo."
+        synth = await self.system.voice.synthesize(
+            test_sentence, for_telegram_opus=False, save_to_disk=False
+        )
+        audio_b64 = (
+            base64.b64encode(synth.audio_bytes).decode("ascii")
+            if synth.audio_bytes
+            else ""
+        )
+        await self.broadcast(
+            {
+                "type": "reply_chunk",
+                "turn_id": turn_id,
+                "index": 0,
+                "total": 1,
+                "sentence": test_sentence,
+                "emotion": "smug",
+                "gesture": "wave",
+                "audio_b64": audio_b64,
+                "mime": synth.mime_type,
+                "provider": synth.provider,
+            }
+        )
+
     async def process_and_stream_turn(self, user_text: str) -> None:
         """
         Interrupt any prior speech, run the Amadeus agent turn, split into spoken + detail,
@@ -221,6 +315,14 @@ class AmadeusWebSocketBridge:
         reply_msg, _ = await self.system.pc_gateway.send_local_prompt(
             user_text, synthesize_voice=False
         )
+        if reply_msg.metadata and reply_msg.metadata.get("pending_op_id"):
+            await self.broadcast(
+                {
+                    "type": "confirm_request",
+                    "id": reply_msg.metadata["pending_op_id"],
+                    "summary": reply_msg.metadata.get("pending_summary", ""),
+                }
+            )
         await self._stream_dual_reply_text(
             reply_msg.content,
             default_emotion=reply_msg.emotion.value,

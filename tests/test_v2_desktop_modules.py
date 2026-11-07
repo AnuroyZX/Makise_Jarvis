@@ -369,4 +369,41 @@ def test_profile_manager_and_zero_config_defaults(tmp_path: Path) -> None:
     assert "probabilidad" in fi.persona_overlay
 
 
+@pytest.mark.asyncio
+async def test_natural_language_file_creation_and_listing(tmp_path: Path) -> None:
+    """
+    Verify natural-language file/folder commands in `AmadeusAgentCore` + `AmadeusToolDispatcher`:
+    1. 'Crea una carpeta Prueba_Amadeus en Escritorio' creates the folder inside allowed root.
+    2. 'Crea un archivo nota.txt en Escritorio con Hola Okabe' creates the file with content.
+    3. 'Lista mis archivos recientes en Escritorio' lists both created items.
+    """
+    desk = tmp_path / "Escritorio"
+    desk.mkdir()
+    cfg = AmadeusSettings(allowed_fs_roots=[str(desk)], voice_replies_enabled=False)
+    cfg.save(tmp_path)
+
+    system = AmadeusSystem(data_dir=tmp_path)
+    system.file_ops._extra_roots.append(desk.resolve())
+
+    reply1, _ = await system.pc_gateway.send_local_prompt(
+        "Crea una carpeta Prueba_Amadeus en Escritorio", synthesize_voice=False
+    )
+    assert "Prueba_Amadeus" in reply1.content
+    assert (desk / "Prueba_Amadeus").is_dir()
+
+    reply2, _ = await system.pc_gateway.send_local_prompt(
+        "Crea un archivo bitacora.txt en Escritorio con El Psy Kongroo", synthesize_voice=False
+    )
+    assert "bitacora.txt" in reply2.content
+    assert (desk / "bitacora.txt").read_text(encoding="utf-8") == "El Psy Kongroo"
+
+    reply3, _ = await system.pc_gateway.send_local_prompt(
+        "Lista mis archivos recientes en Escritorio", synthesize_voice=False
+    )
+    assert "bitacora.txt" in reply3.content
+    assert "Prueba_Amadeus/" in reply3.content
+    await system.shutdown()
+
+
+
 
