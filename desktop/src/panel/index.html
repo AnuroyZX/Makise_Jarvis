@@ -114,7 +114,16 @@
   <div class="grid">
     <!-- Left Column: Live Chat, Mic, Screen Analysis & File Operations -->
     <div class="card">
-      <h2>💬 Consola Directa con Makise Kurisu</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(37,124,196,0.18); padding-bottom:6px;">
+        <h2 style="margin:0; border:none; padding:0;">💬 Consola Directa con Makise Kurisu</h2>
+        <div style="display:flex; gap:5px; align-items:center;">
+          <select id="sessionSelect" style="margin:0; padding:3px 6px; font-size:0.75rem; width:160px;" onchange="onSessionChange(this.value)">
+            <option value="">(Cargando historial...)</option>
+          </select>
+          <button class="secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="createNewSession()" title="Iniciar una nueva conversación limpia">➕ Nueva</button>
+          <button class="secondary" style="padding:4px 6px; font-size:0.75rem;" onclick="deleteCurrentSession()" title="Eliminar conversación del historial">🗑️</button>
+        </div>
+      </div>
       <div id="chatBox">
         <div class="msg msg-kurisu"><b>Kurisu:</b> Sistema Amadeus en línea. Puedes hablarme por voz (🎙️), escribirme o probar las acciones de escritorio y archivos abajo.</div>
       </div>
@@ -342,7 +351,49 @@ async function initPanel() {
           } else {
             ws.send(JSON.stringify({ type: 'confirm', id: msg.id, approved: false }));
           }
+        } else if (msg.type === 'sessions_list') {
+          const sel = document.getElementById('sessionSelect');
+          if (sel && msg.sessions) {
+            sel.innerHTML = '';
+            msg.sessions.forEach(s => {
+              const opt = document.createElement('option');
+              opt.value = s.session_id;
+              opt.textContent = `${s.title} (${s.msg_count})`;
+              sel.appendChild(opt);
+            });
+            if (msg.active_session_id) {
+              sel.value = msg.active_session_id;
+              if (!window.__initialSessionRestored) {
+                window.__initialSessionRestored = true;
+                ws.send(JSON.stringify({ type: 'switch_session', session_id: msg.active_session_id }));
+              }
+            }
+          }
+        } else if (msg.type === 'session_created') {
+          const chatBox = document.getElementById('chatBox');
+          if (chatBox) {
+            chatBox.innerHTML = '<div class="msg msg-kurisu"><b>Kurisu:</b> He iniciado una nueva sesión de conversación, Okabe. ¿De qué quieres hablar?</div>';
+          }
+          requestSessions();
+        } else if (msg.type === 'session_switched') {
+          const chatBox = document.getElementById('chatBox');
+          if (chatBox) {
+            chatBox.innerHTML = '';
+            if (!msg.messages || msg.messages.length === 0) {
+              chatBox.innerHTML = '<div class="msg msg-kurisu"><b>Kurisu:</b> Conversación vacía.</div>';
+            } else {
+              msg.messages.forEach(m => {
+                const cls = m.role === 'user' ? 'msg-user' : 'msg-kurisu';
+                const name = m.role === 'user' ? 'Tú' : 'Kurisu';
+                appendChat(cls, name, m.content);
+              });
+            }
+          }
+          requestSessions();
         }
+      };
+      ws.onopen = () => {
+        requestSessions();
       };
     }
   }
@@ -377,6 +428,32 @@ async function initPanel() {
     }
   } catch (err) {
     console.error('Error loading state:', err);
+  }
+}
+
+function requestSessions() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'get_sessions' }));
+  }
+}
+
+function onSessionChange(sessionId) {
+  if (!sessionId || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'switch_session', session_id: sessionId }));
+}
+
+function createNewSession() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const title = prompt('Título para la nueva conversación (opcional):');
+  ws.send(JSON.stringify({ type: 'new_session', title: title || '' }));
+}
+
+function deleteCurrentSession() {
+  const sel = document.getElementById('sessionSelect');
+  if (!sel || !sel.value || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (confirm('¿Deseas eliminar esta conversación del historial?')) {
+    ws.send(JSON.stringify({ type: 'delete_session', session_id: sel.value }));
+    setTimeout(requestSessions, 300);
   }
 }
 

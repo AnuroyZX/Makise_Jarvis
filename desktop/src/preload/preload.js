@@ -14,4 +14,12 @@ contextBridge.exposeInMainWorld("amadeusDesktop", {
   onShortcutEvent: (callback) => {
     ipcRenderer.on("amadeus:shortcut", (_event, action) => callback(action));
   },
+  showNotes: (data) => ipcRenderer.send("amadeus:show-notes", data),
+  hideNotes: () => ipcRenderer.send("amadeus:hide-notes"),
+  setNotesWindowSize: (w, h) => ipcRenderer.send("amadeus:set-notes-size", { w, h }),
+  copyToClipboard: (text) => ipcRenderer.send("amadeus:copy-clipboard", text),
+  setInteractiveState: (state) => ipcRenderer.send("amadeus:set-interactive-state", state),
+  onNotesData: (callback) => {
+    ipcRenderer.on("amadeus:notes-data", (_event, data) => callback(data));
+  },
 });

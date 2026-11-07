@@ -82,8 +82,54 @@
     50% { opacity: 0; }
   }
   #confirmCard {
-    position: absolute; bottom: 120px; left: 10px; width: 235px;
-    padding: 11px; display: none; z-index: 30;
+    position: absolute;
+    bottom: 110px;
+    left: 14px;
+    width: 260px;
+    padding: 12px 14px;
+    display: none;
+    flex-direction: column;
+    z-index: 32;
+    pointer-events: auto;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    animation: fadeInScale 0.22s ease forwards;
+  }
+  .confirm-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #fbbf24;
+    margin-bottom: 6px;
+  }
+  .confirm-text {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+  .btn-confirm-run {
+    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .btn-confirm-cancel {
+    background: rgba(100, 116, 139, 0.75);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    cursor: pointer;
   }
   #quickInputBar {
     position: absolute; bottom: 54px; left: 16px; right: 16px;
@@ -125,6 +171,23 @@
     padding: 4px 10px; font-size: 0.74rem; font-weight: 600;
     display: none; z-index: 25;
   }
+  .btn-air-sm {
+    background: linear-gradient(180deg, #6ec3ff 0%, #2f8fdc 100%);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.7);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.72rem;
+  }
+  .btn-air-sm.btn-close {
+    background: rgba(239, 68, 68, 0.8);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+  .btn-air-sm.btn-close:hover {
+    background: rgba(220, 38, 38, 0.95);
+  }
 </style>
 <script type="importmap">
 {
@@ -144,12 +207,13 @@
   <!-- Right-side Unobstructed 3D VRM Stage -->
   <div id="stageCanvas"></div>
 
-  <!-- File Operation Confirmation Card -->
+  <!-- File Operation / Script Execution Confirmation Card -->
   <div id="confirmCard" class="aero-glass">
-    <div id="confirmText" style="font-size:0.82rem; margin-bottom:8px; font-weight:600;"></div>
+    <div class="confirm-header">⚡ Solicitud de Acción</div>
+    <div id="confirmText" class="confirm-text"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
-      <button class="btn-air" onclick="sendConfirm(true)">✓ Confirmar</button>
-      <button class="btn-air" style="background:#64748b;" onclick="sendConfirm(false)">✕ Cancelar</button>
+      <button class="btn-confirm-run" onclick="sendConfirm(true)">▶ Autorizar</button>
+      <button class="btn-confirm-cancel" onclick="sendConfirm(false)">✕ Cancelar</button>
     </div>
   </div>
 
@@ -167,6 +231,7 @@
     <span id="dragPill" class="btn-drag" onmousedown="startAvatarDrag(event)" title="Arrastra aquí para mover a Kurisu">✥ Mover</span>
     <button id="micBtn" class="btn-air" onclick="toggleVoiceMic()" title="Hablar por micrófono">🎙️ Micro</button>
     <button class="btn-air" onclick="toggleQuickBar()" title="Ctrl+Alt+Espacio">💬 Hablar</button>
+    <button class="btn-air" onclick="triggerNotesWindow()" title="Ver Notas / Detalle en Pantalla">📝 Notas</button>
     <button class="btn-air" onclick="triggerScreenLook()" title="Ctrl+Alt+V">👁️ Pantalla</button>
     <button class="btn-air" onclick="openPanelWindow()" title="Abrir Ventana Soft Air">⚙️ Panel</button>
   </div>
@@ -323,7 +388,7 @@ function loadVrmModel(url) {
       camera.lookAt(0.0, height * 0.81, 0.0);
       mixer = new THREE.AnimationMixer(vrm.scene);
       applyEmotion(currentEmotion);
-      playSentenceBubblesWithAudio("Sistema Amadeus en línea. ¿En qué trabajamos hoy?", 3200);
+      spawnLateralDialog("Sistema Amadeus en línea. ¿En qué trabajamos hoy?", 3200);
     },
     undefined,
     (err) => {
@@ -456,65 +521,61 @@ function animate() {
 animate();
 
 let activeDialogTimers = [];
+let currentTypewriterTimer = null;
+let notesCardAutoCloseTimer = null;
 
-function splitIntoSpokenPhrases(sentence) {
-  const clean = (sentence || '').trim();
-  if (!clean) return [];
-  if (clean.length <= 52) return [clean];
-  // Split at natural pause punctuation while keeping punctuation attached
-  const rawParts = clean.split(/(?<=[,;:.!?—])\s+/);
-  const merged = [];
-  let buf = '';
-  for (const part of rawParts) {
-    if (!buf) {
-      buf = part;
-    } else if ((buf + ' ' + part).length <= 58) {
-      buf += ' ' + part;
-    } else {
-      merged.push(buf);
-      buf = part;
-    }
-  }
-  if (buf) merged.push(buf);
-  return merged;
+function removeBubbleSmoothly(bubble) {
+  if (!bubble || bubble.classList.contains('exiting')) return;
+  bubble.classList.add('exiting');
+  setTimeout(() => {
+    if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+  }, 350);
 }
 
-/**
- * Displays phrases strictly one after another in order, with each bubble's
- * typewriter speed and start delay synchronized to the exact audio duration (`totalDurationMs`).
- */
-function playSentenceBubblesWithAudio(sentence, totalDurationMs = 2600) {
-  const phrases = splitIntoSpokenPhrases(sentence);
-  if (phrases.length === 0 || bubblesMode === 'off') return;
-
-  const totalChars = Math.max(1, phrases.reduce((acc, p) => acc + p.length, 0));
-  let cumulativeDelayMs = 0;
-
-  for (let i = 0; i < phrases.length; i++) {
-    const phrase = phrases[i];
-    const ratio = phrase.length / totalChars;
-    const phraseSpeechMs = Math.max(700, Math.round(totalDurationMs * ratio));
-    const startAtMs = cumulativeDelayMs;
-    cumulativeDelayMs += phraseSpeechMs + 140;
-
-    const timerId = setTimeout(() => {
-      spawnLateralDialog(phrase, phraseSpeechMs, 2600);
-    }, startAtMs);
-    activeDialogTimers.push(timerId);
+function clearAllLateralDialogs() {
+  while (activeDialogTimers.length > 0) {
+    const t = activeDialogTimers.pop();
+    clearTimeout(t);
+    clearInterval(t);
+  }
+  if (currentTypewriterTimer) {
+    clearInterval(currentTypewriterTimer);
+    currentTypewriterTimer = null;
+  }
+  const stream = document.getElementById('sideDialogStream');
+  if (stream) {
+    Array.from(stream.children).forEach((b) => removeBubbleSmoothly(b));
   }
 }
 
-/**
- * Spawns a single lateral Soft Air dialogue pill, types it over `typingDurationMs`
- * (matching the voice duration for that phrase), and erases itself after `holdAfterMs`.
- */
-function spawnLateralDialog(text, typingDurationMs = 1400, holdAfterMs = 2600) {
-  const clean = (text || '').trim();
-  if (!clean || bubblesMode === 'off') return;
+function cleanBubbleText(raw) {
+  if (!raw) return '';
+  return String(raw)
+    .replace(/\[(?:emotion|gesture|mood|action):[^\]]+\]/gi, '')
+    .replace(/\b(?:mood|emotion|gesture)\s*:\s*\w+/gi, '')
+    .replace(/\*[^*]+\*/g, '')
+    .replace(/^Amadeus\s*:\s*/i, '')
+    .replace(/---DETALLE---[\s\S]*$/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// Spawns a synchronized bubble, types text pacing to voice duration, and calls onComplete when done
+function spawnSyncedBubble(text, targetDurationMs, onTypewriterComplete) {
+  const clean = cleanBubbleText(text);
+  if (!clean || bubblesMode === 'off') {
+    if (onTypewriterComplete) onTypewriterComplete();
+    return null;
+  }
 
   const stream = document.getElementById('sideDialogStream');
+  if (!stream) {
+    if (onTypewriterComplete) onTypewriterComplete();
+    return null;
+  }
+
   const activeBubbles = Array.from(stream.querySelectorAll('.side-bubble:not(.exiting)'));
-  while (activeBubbles.length >= 3) {
+  while (activeBubbles.length >= 2) {
     const oldest = activeBubbles.shift();
     removeBubbleSmoothly(oldest);
   }
@@ -532,37 +593,35 @@ function spawnLateralDialog(text, typingDurationMs = 1400, holdAfterMs = 2600) {
   requestAnimationFrame(() => bubble.classList.add('visible'));
 
   let idx = 0;
-  // Sync typewriter pace to the voice duration (leaving ~15% buffer at end of phrase)
-  const charDelay = Math.max(18, Math.min(65, Math.floor((typingDurationMs * 0.85) / Math.max(1, clean.length))));
-  const typeTimer = setInterval(() => {
+  // Dynamic typewriter pacing: calibrated to finish ~12% before audio concludes
+  const safeDuration = Math.max(700, targetDurationMs);
+  const charDelay = Math.max(14, Math.min(55, Math.floor((safeDuration * 0.88) / Math.max(1, clean.length))));
+
+  if (currentTypewriterTimer) {
+    clearInterval(currentTypewriterTimer);
+    currentTypewriterTimer = null;
+  }
+
+  currentTypewriterTimer = setInterval(() => {
     idx += 1;
     spanText.textContent = clean.slice(0, idx);
     if (idx >= clean.length) {
-      clearInterval(typeTimer);
+      clearInterval(currentTypewriterTimer);
+      currentTypewriterTimer = null;
       cursor.remove();
-      const eraseTimer = setTimeout(() => removeBubbleSmoothly(bubble), holdAfterMs);
-      activeDialogTimers.push(eraseTimer);
+      if (onTypewriterComplete) onTypewriterComplete();
     }
   }, charDelay);
-  activeDialogTimers.push(typeTimer);
+
+  return bubble;
 }
 
-function removeBubbleSmoothly(bubble) {
-  if (!bubble || bubble.classList.contains('exiting')) return;
-  bubble.classList.add('exiting');
-  setTimeout(() => {
-    if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
-  }, 300);
-}
-
-function clearAllLateralDialogs() {
-  while (activeDialogTimers.length > 0) {
-    const t = activeDialogTimers.pop();
-    clearTimeout(t);
-    clearInterval(t);
-  }
-  const stream = document.getElementById('sideDialogStream');
-  Array.from(stream.children).forEach((b) => removeBubbleSmoothly(b));
+function spawnLateralDialog(text, durationMs = 2400) {
+  const bubble = spawnSyncedBubble(text, durationMs, () => {
+    const holdTimer = setTimeout(() => removeBubbleSmoothly(bubble), 2600);
+    activeDialogTimers.push(holdTimer);
+  });
+  return bubble;
 }
 
 // Sequential Sentence Audio Queue synchronized with Lateral Dialogue Bubbles
@@ -579,14 +638,38 @@ async function playNextSentenceChunk() {
   applyEmotion(item.emotion);
   triggerGesture(item.gesture);
 
-  const estimatedMs = Math.max(1600, (item.sentence || '').length * 68);
+  const cleanText = cleanBubbleText(item.sentence || '');
+  const estimatedMs = Math.max(1500, cleanText.length * 52);
 
+  let audioFinished = false;
+  let typewriterFinished = false;
+  let isAdvanced = false;
+  let activeBubble = null;
+
+  const tryAdvance = () => {
+    if (isAdvanced) return;
+    if (audioFinished && typewriterFinished) {
+      isAdvanced = true;
+      // Hold reading period (1.1s - 2.2s) so user comfortably reads before next sentence
+      const holdMs = Math.min(2200, Math.max(1100, cleanText.length * 15));
+      setTimeout(() => {
+        if (activeBubble) removeBubbleSmoothly(activeBubble);
+        playNextSentenceChunk();
+      }, holdMs);
+    }
+  };
+
+  // Case 1: No voice audio attached -> drive purely by dynamic reading typewriter
   if (!item.audio_b64) {
-    playSentenceBubblesWithAudio(item.sentence, estimatedMs);
-    setTimeout(playNextSentenceChunk, estimatedMs + 350);
+    audioFinished = true;
+    activeBubble = spawnSyncedBubble(cleanText, estimatedMs, () => {
+      typewriterFinished = true;
+      tryAdvance();
+    });
     return;
   }
 
+  // Case 2: Voice audio attached -> measure real duration and synchronize
   ensureAudioGraph();
   if (audioCtx && audioCtx.state === 'suspended') {
     await audioCtx.resume().catch(() => {});
@@ -595,31 +678,71 @@ async function playNextSentenceChunk() {
     ws.send(JSON.stringify({ type: 'audio_playing', playing: true }));
   }
 
-  let startedBubbles = false;
-  const triggerSyncedBubbles = () => {
-    if (startedBubbles) return;
-    startedBubbles = true;
-    const realMs =
-      audioEl.duration && isFinite(audioEl.duration) && audioEl.duration > 0.2
-        ? Math.round(audioEl.duration * 1000)
-        : estimatedMs;
-    playSentenceBubblesWithAudio(item.sentence, realMs);
+  let startedSyncedBubble = false;
+  const startBubbleWithRealDuration = () => {
+    if (startedSyncedBubble) return;
+    startedSyncedBubble = true;
+    const realMs = (audioEl.duration && isFinite(audioEl.duration) && audioEl.duration > 0.15)
+      ? Math.round(audioEl.duration * 1000)
+      : estimatedMs;
+    activeBubble = spawnSyncedBubble(cleanText, realMs, () => {
+      typewriterFinished = true;
+      tryAdvance();
+    });
   };
 
-  audioEl.onloadedmetadata = () => triggerSyncedBubbles();
+  audioEl.onloadedmetadata = () => startBubbleWithRealDuration();
   audioEl.onended = () => {
-    setTimeout(playNextSentenceChunk, 180);
+    audioFinished = true;
+    tryAdvance();
   };
   audioEl.onerror = () => {
-    triggerSyncedBubbles();
-    setTimeout(playNextSentenceChunk, estimatedMs);
+    audioFinished = true;
+    startBubbleWithRealDuration();
+    typewriterFinished = true;
+    tryAdvance();
   };
+
   audioEl.src = `data:${item.mime || 'audio/mpeg'};base64,${item.audio_b64}`;
-  audioEl.play().then(() => triggerSyncedBubbles()).catch(() => {
-    triggerSyncedBubbles();
-    setTimeout(playNextSentenceChunk, estimatedMs);
-  });
+  audioEl.play()
+    .then(() => startBubbleWithRealDuration())
+    .catch(() => {
+      audioFinished = true;
+      startBubbleWithRealDuration();
+      typewriterFinished = true;
+      tryAdvance();
+    });
 }
+
+let isNotesHovered = false;
+
+let lastNotesContent = '';
+
+window.showScreenNotes = function(content) {
+  lastNotesContent = (content || '').trim();
+  if (window.amadeusDesktop && window.amadeusDesktop.showNotes) {
+    window.amadeusDesktop.showNotes({
+      detail: lastNotesContent,
+      title: 'Notas de Amadeus'
+    });
+  }
+  triggerGesture('point');
+};
+
+window.triggerNotesWindow = function() {
+  if (window.amadeusDesktop && window.amadeusDesktop.showNotes) {
+    window.amadeusDesktop.showNotes({
+      detail: lastNotesContent || 'Sin notas recientes. Puedes pedirme "Muestra las notas en pantalla" o pedirme ejecutar un script.',
+      title: 'Notas de Amadeus'
+    });
+  }
+};
+
+window.closeScreenNotes = function() {
+  if (window.amadeusDesktop && window.amadeusDesktop.hideNotes) {
+    window.amadeusDesktop.hideNotes();
+  }
+};
 
 // Passive Overlay Click-Through: let all clicks pass through transparent areas & 3D body to Valorant/apps behind,
 // and only capture mouse events when hovering directly over the interactive UI bars.
@@ -673,8 +796,8 @@ window.submitQuickInput = () => {
   const inp = document.getElementById('quickInput');
   const text = inp.value.trim();
   document.getElementById('quickInputBar').style.display = 'none';
-  if (window.amadeusDesktop && window.amadeusDesktop.setFocusable) {
-    window.amadeusDesktop.setFocusable(false);
+  if (window.amadeusDesktop && window.amadeusDesktop.setInteractiveState) {
+    window.amadeusDesktop.setInteractiveState({ quickBar: false });
   }
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
   inp.value = '';
@@ -694,8 +817,8 @@ window.toggleQuickBar = () => {
   const bar = document.getElementById('quickInputBar');
   const opening = bar.style.display !== 'flex';
   bar.style.display = opening ? 'flex' : 'none';
-  if (window.amadeusDesktop && window.amadeusDesktop.setFocusable) {
-    window.amadeusDesktop.setFocusable(opening);
+  if (window.amadeusDesktop && window.amadeusDesktop.setInteractiveState) {
+    window.amadeusDesktop.setInteractiveState({ quickBar: opening });
   }
   if (opening) {
     setTimeout(() => document.getElementById('quickInput').focus(), 40);
@@ -716,6 +839,9 @@ window.openPanelWindow = () => {
 
 window.sendConfirm = (approved) => {
   document.getElementById('confirmCard').style.display = 'none';
+  if (window.amadeusDesktop && window.amadeusDesktop.setInteractiveState) {
+    window.amadeusDesktop.setInteractiveState({ confirmCard: false });
+  }
   if (ws && ws.readyState === WebSocket.OPEN && pendingOpId) {
     ws.send(JSON.stringify({ type: 'confirm', id: pendingOpId, approved }));
   }
@@ -755,19 +881,10 @@ async function initConnection() {
       audioEl.pause();
       isPlayingQueue = false;
       clearAllLateralDialogs();
+      closeScreenNotes();
     } else if (msg.type === 'reply_detail') {
-      if (bubblesMode !== 'off' && msg.detail) {
-        // Enqueue detail lines into the sequential queue so they appear in strict order AFTER speech
-        const lines = msg.detail.split(/\n+/).filter((l) => l.trim());
-        lines.slice(0, 3).forEach((line) => {
-          audioQueue.push({
-            sentence: line,
-            emotion: msg.emotion || currentEmotion,
-            gesture: 'idle',
-            audio_b64: '',
-          });
-        });
-        if (!isPlayingQueue) playNextSentenceChunk();
+      if (msg.detail) {
+        showScreenNotes(msg.detail);
       }
     } else if (msg.type === 'reply_chunk') {
       audioQueue.push(msg);
@@ -775,7 +892,11 @@ async function initConnection() {
     } else if (msg.type === 'confirm_request') {
       pendingOpId = msg.id;
       document.getElementById('confirmText').textContent = msg.summary;
-      document.getElementById('confirmCard').style.display = 'block';
+      document.getElementById('confirmCard').style.display = 'flex';
+      if (window.amadeusDesktop && window.amadeusDesktop.setInteractiveState) {
+        window.amadeusDesktop.setInteractiveState({ confirmCard: true });
+      }
+      triggerGesture('think');
     } else if (msg.type === 'listening') {
       const pill = document.getElementById('statePill');
       const micBtn = document.getElementById('micBtn');

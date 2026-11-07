@@ -1,0 +1,8 @@
+{
+  "id": "kurisu_studio",
+  "display_name": "Makise Kurisu — Voz Limpia de Estudio",
+  "voice_engine": "qwen3_kurisu",
+  "qwen3_speaker": "kurisu",
+  "dsp_preset": "clean",
+  "persona_overlay": ""
+}

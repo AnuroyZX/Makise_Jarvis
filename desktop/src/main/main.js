@@ -9,6 +9,7 @@ const {
   nativeImage,
   screen,
   globalShortcut,
+  clipboard,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -29,10 +30,119 @@ app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 let coreLink = null;
 let avatarWin = null;
 let panelWin = null;
+let notesWin = null;
 let tray = null;
 let topMostTimer = null;
 let ecoModeActive = false;
 let connectionInfo = { wsPort: 0, wsToken: "", httpUrl: "" };
+
+let interactiveState = { quickBar: false, confirmCard: false };
+let lastIgnoreState = true;
+let mouseCheckInterval = null;
+
+function createNotesWindow() {
+  if (notesWin && !notesWin.isDestroyed()) return notesWin;
+
+  const primary = screen.getPrimaryDisplay();
+  const wa = primary.workArea;
+  const winW = 480;
+  const winH = 560;
+
+  const avatarBounds = (avatarWin && !avatarWin.isDestroyed()) ? avatarWin.getBounds() : null;
+  const x = avatarBounds
+    ? Math.max(wa.x + 20, avatarBounds.x - winW - 16)
+    : wa.x + wa.width - winW - 30;
+  const y = avatarBounds
+    ? Math.max(wa.y + 20, avatarBounds.y + 20)
+    : wa.y + wa.height - winH - 30;
+
+  notesWin = new BrowserWindow({
+    width: winW,
+    height: winH,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    resizable: true,
+    minWidth: 320,
+    minHeight: 46,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    show: false,
+    title: "Amadeus Kurisu — Notas en Pantalla",
+    webPreferences: {
+      preload: path.join(__dirname, "..", "preload", "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  notesWin.setAlwaysOnTop(true, "normal");
+  notesWin.loadFile(path.join(__dirname, "..", "notes", "index.html"));
+  notesWin.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  notesWin.webContents.on("will-navigate", (event, navUrl) => {
+    if (!navUrl.startsWith("file://")) event.preventDefault();
+  });
+
+  notesWin.on("closed", () => {
+    notesWin = null;
+  });
+
+  return notesWin;
+}
+
+function showNotesWindow(data) {
+  const win = createNotesWindow();
+  if (!win.isVisible()) {
+    win.show();
+  }
+  win.focus();
+  win.webContents.send("amadeus:notes-data", data);
+}
+
+function startMouseMonitor() {
+  if (mouseCheckInterval) return;
+  mouseCheckInterval = setInterval(() => {
+    if (!avatarWin || avatarWin.isDestroyed() || dragTimer) return;
+    const cursor = screen.getCursorScreenPoint();
+    const bounds = avatarWin.getBounds();
+
+    const inside = (
+      cursor.x >= bounds.x &&
+      cursor.x <= bounds.x + bounds.width &&
+      cursor.y >= bounds.y &&
+      cursor.y <= bounds.y + bounds.height
+    );
+
+    if (!inside) {
+      if (!lastIgnoreState) {
+        lastIgnoreState = true;
+        avatarWin.setIgnoreMouseEvents(true, { forward: true });
+      }
+      return;
+    }
+
+    const relX = cursor.x - bounds.x;
+    const relY = cursor.y - bounds.y;
+
+    // 1. MiniDock (bottom right corner, dock width ~300px, height ~65px)
+    const inDock = (relX >= bounds.width - 320 && relY >= bounds.height - 65);
+
+    // 2. Quick input bar: bottom area above dock
+    const inQuickBar = (interactiveState.quickBar && relY >= bounds.height - 120);
+
+    // 3. Confirm card: top-left area
+    const inConfirm = (interactiveState.confirmCard && relX <= 320 && relY >= 40 && relY <= 380);
+
+    const isInteractive = inDock || inQuickBar || inConfirm;
+    const shouldIgnore = !isInteractive;
+
+    if (shouldIgnore !== lastIgnoreState) {
+      lastIgnoreState = shouldIgnore;
+      avatarWin.setIgnoreMouseEvents(shouldIgnore, { forward: true });
+    }
+  }, 40);
+}
 
 function createTrayEmblem() {
   const size = 16;
@@ -75,7 +185,7 @@ function createAvatarWindow() {
     transparent: true,
     resizable: false,
     alwaysOnTop: true,
-    focusable: false,
+    focusable: true,
     skipTaskbar: true,
     hasShadow: false,
     title: "Makise Kurisu — Avatar 3D",
@@ -87,10 +197,11 @@ function createAvatarWindow() {
     },
   });
 
-  // Mid-tier passive overlay ("normal" topmost level, no timer, no focus stealing, click-through on transparent areas)
-  // This keeps Kurisu floating above normal desktop windows without minimizing or tabbing out of Valorant / fullscreen games.
+  // Mid-tier passive overlay ("normal" topmost level, click-through on transparent areas)
+  // This keeps Kurisu floating above normal desktop windows without minimizing or tabbing out of fullscreen games.
   avatarWin.setAlwaysOnTop(true, "normal");
   avatarWin.setIgnoreMouseEvents(true, { forward: true });
+  startMouseMonitor();
 
   avatarWin.webContents.on("console-message", (_ev, _level, msg, line) => {
     console.log(`[AVATAR-RENDERER:${line}] ${msg}`);
@@ -142,7 +253,9 @@ function toggleEcoMode() {
   if (ecoModeActive) {
     if (panelWin && !panelWin.isDestroyed()) panelWin.close();
     if (avatarWin && !avatarWin.isDestroyed()) avatarWin.close();
+    if (notesWin && !notesWin.isDestroyed()) notesWin.close();
     avatarWin = null;
+    notesWin = null;
   } else {
     createAvatarWindow();
     openSettingsPanel();
@@ -155,10 +268,14 @@ function setupSystemTray() {
   const menu = Menu.buildFromTemplate([
     { label: "Abrir Ventana Principal Soft Air", click: () => openSettingsPanel() },
     { label: "Mostrar / Enfocar Avatar 3D (.VRM)", click: () => createAvatarWindow() },
+    { label: "Abrir Notas / Detalle en Pantalla", click: () => showNotesWindow({ detail: "Notas de Amadeus Kurisu", title: "Notas" }) },
     {
       label: "Escribir a Kurisu (Ctrl+Alt+Espacio)",
       click: () => {
         if (avatarWin && !avatarWin.isDestroyed()) {
+          avatarWin.setIgnoreMouseEvents(false);
+          lastIgnoreState = false;
+          interactiveState.quickBar = true;
           avatarWin.focus();
           avatarWin.webContents.send("amadeus:shortcut", "toggle-input");
         }
@@ -190,6 +307,10 @@ function setupSystemTray() {
 function registerShortcuts() {
   globalShortcut.register("CommandOrControl+Alt+Space", () => {
     if (!avatarWin || avatarWin.isDestroyed()) createAvatarWindow();
+    avatarWin.setIgnoreMouseEvents(false);
+    lastIgnoreState = false;
+    interactiveState.quickBar = true;
+    avatarWin.show();
     avatarWin.focus();
     avatarWin.webContents.send("amadeus:shortcut", "toggle-input");
   });
@@ -263,14 +384,40 @@ ipcMain.on("amadeus:stop-drag", () => {
 ipcMain.on("amadeus:set-dodge-enabled", () => {});
 ipcMain.on("amadeus:open-panel", () => openSettingsPanel());
 
+ipcMain.on("amadeus:show-notes", (_ev, data) => {
+  showNotesWindow(data);
+});
+ipcMain.on("amadeus:hide-notes", () => {
+  if (notesWin && !notesWin.isDestroyed()) notesWin.hide();
+});
+ipcMain.on("amadeus:set-notes-size", (_ev, { w, h }) => {
+  if (notesWin && !notesWin.isDestroyed()) {
+    notesWin.setSize(w, h);
+  }
+});
+ipcMain.on("amadeus:copy-clipboard", (_ev, text) => {
+  if (text) clipboard.writeText(String(text));
+});
+ipcMain.on("amadeus:set-interactive-state", (_ev, state) => {
+  if (state && typeof state === "object") {
+    interactiveState = { ...interactiveState, ...state };
+    if (avatarWin && !avatarWin.isDestroyed()) {
+      if (state.quickBar || state.confirmCard) {
+        avatarWin.setIgnoreMouseEvents(false);
+        lastIgnoreState = false;
+      }
+    }
+  }
+});
+
 app.whenReady().then(() => {
+  setupSystemTray();
+  registerShortcuts();
   coreLink = new CoreProcessLink({
     projectRoot,
     onReady: (info) => {
       connectionInfo = info;
       createAvatarWindow();
-      setupSystemTray();
-      registerShortcuts();
       if (isSmokeTest) {
         openSettingsPanel();
         setTimeout(async () => {
@@ -289,7 +436,15 @@ app.whenReady().then(() => {
         }, 3200);
       }
     },
-    onExit: () => {},
+    onExit: (code) => {
+      if (!connectionInfo.wsPort && !isSmokeTest) {
+        const { dialog } = require("electron");
+        dialog.showErrorBox(
+          "Amadeus Kurisu — Error de inicio",
+          `El núcleo de Amadeus no pudo iniciarse (código ${code}).\nRevisa los logs o inicia Iniciar_Amadeus_Kurisu.bat.`
+        );
+      }
+    },
   });
   coreLink.start();
 });
@@ -300,6 +455,7 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  if (mouseCheckInterval) clearInterval(mouseCheckInterval);
   if (topMostTimer) clearInterval(topMostTimer);
   if (coreLink) coreLink.stop();
 });

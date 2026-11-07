@@ -6,7 +6,11 @@ import re
 from typing import List
 
 from amadeus.body.agent_core import EmotionState
-from amadeus.brain.router import parse_emotion_tag
+from amadeus.voice.sanitizer import (
+    extract_emotions_and_gestures,
+    sanitize_for_bubble,
+    sanitize_for_speech,
+)
 
 VALID_GESTURES = (
     "idle",
@@ -43,15 +47,17 @@ class DualLayerReply:
     def split_spoken_sentences(self) -> List[str]:
         """
         Open-LLM-VTuber Sentence Divider:
-        Slices `spoken` into clean discrete sentences for parallel TTS streaming.
+        Slices `spoken` into clean discrete sentences for parallel TTS streaming,
+        guaranteeing all emotion tags, directives and formatting are sanitized.
         """
-        raw_parts = SENTENCE_SPLIT_RE.split(self.spoken.strip())
+        cleaned_spoken = sanitize_for_speech(self.spoken)
+        raw_parts = SENTENCE_SPLIT_RE.split(cleaned_spoken.strip())
         sentences: List[str] = []
         for part in raw_parts:
-            cleaned = re.sub(r"[*_`#>-]", "", part).strip()
+            cleaned = sanitize_for_speech(part)
             if cleaned:
                 sentences.append(cleaned)
-        return sentences or ([self.spoken.strip()] if self.spoken.strip() else [])
+        return sentences or ([cleaned_spoken] if cleaned_spoken else [])
 
 
 def truncate_at_sentence_boundary(text: str, max_chars: int = 340) -> str:
@@ -69,9 +75,34 @@ def truncate_at_sentence_boundary(text: str, max_chars: int = 340) -> str:
 def parse_dual_layer_output(raw_llm_text: str) -> DualLayerReply:
     """
     Parse structured JSON {spoken, detail, emotion, gesture} from LLM output,
-    with tolerant fallback if the model emits plain text or inline [EMOTION:...] tags.
+    with tolerant fallback if the model emits plain text, inline [EMOTION:...] tags,
+    or tool markers like ---DETALLE---.
     """
-    text_clean, tag_emotion = parse_emotion_tag(raw_llm_text)
+    text_clean, tag_emotion, tag_gesture = extract_emotions_and_gestures(raw_llm_text)
+    
+    # Map tag emotion string to EmotionState enum
+    emo = EmotionState.NEUTRAL
+    if tag_emotion:
+        try:
+            emo = EmotionState(tag_emotion.lower())
+        except ValueError:
+            emo = EmotionState.NEUTRAL
+
+    gesture = tag_gesture if tag_gesture in VALID_GESTURES else "idle"
+
+    # Check for explicit ---DETALLE--- marker
+    if "---DETALLE---" in text_clean:
+        parts = text_clean.split("---DETALLE---", 1)
+        spoken_part = sanitize_for_bubble(parts[0])
+        detail_part = parts[1].strip()
+        if not spoken_part:
+            spoken_part = "Listo, te dejo los detalles en pantalla."
+        return DualLayerReply(
+            spoken=truncate_at_sentence_boundary(spoken_part),
+            detail=detail_part,
+            emotion=emo,
+            gesture="nod" if gesture == "idle" else gesture,
+        )
 
     # 1. Try parsing JSON directly or extracting a JSON block
     candidate_json = text_clean.strip()
@@ -86,23 +117,23 @@ def parse_dual_layer_output(raw_llm_text: str) -> DualLayerReply:
             if isinstance(obj, dict) and ("spoken" in obj or "detail" in obj):
                 raw_spoken = str(obj.get("spoken") or "").strip()
                 raw_detail = str(obj.get("detail") or "").strip()
-                raw_emo = str(obj.get("emotion") or tag_emotion.value).lower().strip()
-                raw_gest = str(obj.get("gesture") or "idle").lower().strip()
+                raw_emo = str(obj.get("emotion") or (tag_emotion or emo.value)).lower().strip()
+                raw_gest = str(obj.get("gesture") or gesture).lower().strip()
 
                 try:
                     emo = EmotionState(raw_emo)
                 except ValueError:
-                    emo = tag_emotion
+                    pass
 
-                gesture = raw_gest if raw_gest in VALID_GESTURES else "idle"
+                final_gesture = raw_gest if raw_gest in VALID_GESTURES else gesture
                 spoken = truncate_at_sentence_boundary(
-                    raw_spoken or "Listo, te dejo los detalles en pantalla."
+                    sanitize_for_bubble(raw_spoken) or "Listo, te dejo los detalles en pantalla."
                 )
                 return DualLayerReply(
                     spoken=spoken,
                     detail=raw_detail,
                     emotion=emo,
-                    gesture=gesture,
+                    gesture=final_gesture,
                 )
         except (json.JSONDecodeError, TypeError):
             pass
@@ -122,17 +153,18 @@ def parse_dual_layer_output(raw_llm_text: str) -> DualLayerReply:
         if len(first_line) > 220 or "```" in first_line:
             spoken_summary = "He preparado la respuesta detallada; te la dejo aquí en pantalla."
         else:
-            spoken_summary = f"{first_line} Te dejo el detalle completo en pantalla."
+            first_clean = sanitize_for_bubble(first_line)
+            spoken_summary = f"{first_clean} Te dejo el detalle completo en pantalla."
         return DualLayerReply(
             spoken=truncate_at_sentence_boundary(spoken_summary),
             detail=text_clean,
-            emotion=tag_emotion,
-            gesture="point",
+            emotion=emo,
+            gesture="point" if gesture == "idle" else gesture,
         )
 
     return DualLayerReply(
-        spoken=truncate_at_sentence_boundary(text_clean),
+        spoken=truncate_at_sentence_boundary(sanitize_for_bubble(text_clean)),
         detail="",
-        emotion=tag_emotion,
-        gesture="idle",
+        emotion=emo,
+        gesture=gesture,
     )

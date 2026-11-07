@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Notas en Pantalla — Amadeus Kurisu</title>
+  <style>
+    :root {
+      --bg-glass: rgba(14, 23, 42, 0.88);
+      --border-glass: rgba(110, 195, 255, 0.35);
+      --header-bg: linear-gradient(180deg, rgba(30, 58, 102, 0.95) 0%, rgba(15, 28, 54, 0.95) 100%);
+      --accent-cyan: #38bdf8;
+      --accent-blue: #0284c7;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --code-bg: rgba(7, 12, 22, 0.92);
+      --code-border: rgba(56, 189, 248, 0.25);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: text; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+    }
+    #notesContainer {
+      display: flex; flex-direction: column; width: 100%; height: 100%;
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px) saturate(160%);
+      border: 1px solid var(--border-glass);
+      border-radius: 14px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+      overflow: hidden;
+    }
+    .notes-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border-glass);
+      -webkit-app-region: drag;
+      cursor: grab;
+    }
+    .notes-header:active {
+      cursor: grabbing;
+    }
+    .notes-title-group {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.85rem; font-weight: 700; color: #bae6fd;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .notes-badge {
+      font-size: 0.7rem; font-weight: 500; color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.08); padding: 2px 7px; border-radius: 999px;
+    }
+    .notes-controls {
+      display: flex; align-items: center; gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .btn-ctrl {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #e2e8f0;
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .btn-ctrl:hover {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: var(--accent-cyan);
+      color: #fff;
+    }
+    .btn-ctrl-close:hover {
+      background: rgba(239, 68, 68, 0.35);
+      border-color: #ef4444;
+      color: #fee2e2;
+    }
+    .notes-body {
+      flex: 1;
+      padding: 14px 16px;
+      overflow-y: auto;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: #e2e8f0;
+    }
+    .notes-body::-webkit-scrollbar { width: 6px; }
+    .notes-body::-webkit-scrollbar-track { background: rgba(0,0,0,0.15); }
+    .notes-body::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.35); border-radius: 3px;
+    }
+    .notes-body::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.65); }
+
+    /* Markdown Styling */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 10px 0;
+      overflow-x: auto;
+      font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      position: relative;
+    }
+    code {
+      font-family: "Cascadia Code", Consolas, monospace;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 5px;
+      border-radius: 4px;
+      color: #7dd3fc;
+      font-size: 0.84em;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+      color: inherit;
+    }
+    h1, h2, h3, h4 {
+      color: #7dd3fc;
+      margin: 12px 0 6px 0;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    h1 { font-size: 1.15rem; border-bottom: 1px solid rgba(125, 211, 252, 0.2); padding-bottom: 4px; }
+    h2 { font-size: 1.02rem; }
+    h3 { font-size: 0.92rem; }
+    ul, ol { margin: 6px 0 8px 20px; }
+    li { margin-bottom: 4px; }
+    blockquote {
+      border-left: 3px solid var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 6px 12px;
+      margin: 8px 0;
+      border-radius: 0 6px 6px 0;
+      color: #cbd5e1;
+      font-style: italic;
+    }
+    p { margin-bottom: 8px; }
+
+    .notes-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 14px;
+      background: rgba(10, 18, 34, 0.9);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      -webkit-app-region: drag;
+    }
+    .notes-footer span { user-select: none; }
+  </style>
+</head>
+<body>
+  <div id="notesContainer">
+    <div class="notes-header">
+      <div class="notes-title-group">
+        <span>📝 Detalle en Pantalla</span>
+        <span id="notesBadge" class="notes-badge">Esperando notas...</span>
+      </div>
+      <div class="notes-controls">
+        <button id="copyBtn" class="btn-ctrl" onclick="copyNotes()" title="Copiar todo al portapapeles">📋 Copiar</button>
+        <button id="minBtn" class="btn-ctrl" onclick="toggleMinimize()" title="Minimizar / Expandir">🗕</button>
+        <button class="btn-ctrl btn-ctrl-close" onclick="closeNotes()" title="Cerrar">✕</button>
+      </div>
+    </div>
+    <div id="notesBody" class="notes-body">
+      <p style="color: #94a3b8; font-style: italic;">No hay notas activas por el momento.</p>
+    </div>
+    <div class="notes-footer">
+      <span id="notesTimestamp">Amadeus Soft Air UI</span>
+      <span id="notesCharCount">0 caracteres</span>
+    </div>
+  </div>
+
+  <script>
+    let isMinimized = false;
+    let currentRawContent = '';
+
+    function renderMarkdown(text) {
+      if (!text) return '';
+      let escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Code blocks with language
+      escaped = escaped.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/gi, (match, lang, code) => {
+        const langBadge = lang ? `<div style="font-size:0.68rem; color:#38bdf8; font-weight:700; text-transform:uppercase; margin-bottom:4px; opacity:0.8;">${lang}</div>` : '';
+        return `<pre>${langBadge}<code>${code.trim()}</code></pre>`;
+      });
+
+      // Inline code
+      escaped = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      // Headers
+      escaped = escaped.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+      escaped = escaped.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+      escaped = escaped.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+      // Blockquotes
+      escaped = escaped.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>');
+
+      // Bold & Italic
+      escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      escaped = escaped.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+      // Lists
+      escaped = escaped.replace(/^\s*[-*+]\s+(.*$)/gim, '<li>$1</li>');
+      escaped = escaped.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+      escaped = escaped.replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li>$1</li>');
+
+      // Paragraphs
+      return escaped
+        .split('\n\n')
+        .map(p => p.trim() ? `<p>${p.replace(/\n/g, '<br/>')}</p>` : '')
+        .join('');
+    }
+
+    function setContent(content, title) {
+      currentRawContent = (content || '').trim();
+      const body = document.getElementById('notesBody');
+      const badge = document.getElementById('notesBadge');
+      const timestamp = document.getElementById('notesTimestamp');
+      const charCount = document.getElementById('notesCharCount');
+
+      if (isMinimized) toggleMinimize();
+
+      const lines = currentRawContent.split('\n').length;
+      badge.textContent = `(${lines} línea${lines === 1 ? '' : 's'})`;
+      charCount.textContent = `${currentRawContent.length} caracteres`;
+
+      const now = new Date();
+      timestamp.textContent = `Actualizado ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+
+      body.innerHTML = renderMarkdown(currentRawContent);
+      body.scrollTop = 0;
+    }
+
+    function copyNotes() {
+      const btn = document.getElementById('copyBtn');
+      if (!currentRawContent) return;
+      if (window.amadeusDesktop && window.amadeusDesktop.copyToClipboard) {
+        window.amadeusDesktop.copyToClipboard(currentRawContent);
+      } else {
+        navigator.clipboard.writeText(currentRawContent);
+      }
+      const orig = btn.textContent;
+      btn.textContent = '✓ ¡Copiado!';
+      setTimeout(() => { btn.textContent = orig; }, 1800);
+    }
+
+    function toggleMinimize() {
+      isMinimized = !isMinimized;
+      const body = document.getElementById('notesBody');
+      const footer = document.querySelector('.notes-footer');
+      const minBtn = document.getElementById('minBtn');
+      if (isMinimized) {
+        body.style.display = 'none';
+        footer.style.display = 'none';
+        minBtn.textContent = '🗖';
+        if (window.amadeusDesktop && window.amadeusDesktop.setNotesWindowSize) {
+          window.amadeusDesktop.setNotesWindowSize(360, 48);
+        }
+      } else {
+        body.style.display = 'block';
+        footer.style.display = 'flex';
+        minBtn.textContent = '🗕';
+        if (window.amadeusDesktop && window.amadeusDesktop.setNotesWindowSize) {
+          window.amadeusDesktop.setNotesWindowSize(480, 560);
+        }
+      }
+    }
+
+    function closeNotes() {
+      if (window.amadeusDesktop && window.amadeusDesktop.hideNotes) {
+        window.amadeusDesktop.hideNotes();
+      }
+    }
+
+    if (window.amadeusDesktop && window.amadeusDesktop.onNotesData) {
+      window.amadeusDesktop.onNotesData((data) => {
+        setContent(data.content || data.detail || '', data.title);
+      });
+    }
+  </script>
+</body>
+</html>

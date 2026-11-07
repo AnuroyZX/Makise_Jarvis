@@ -49,6 +49,7 @@ class AmadeusToolDispatcher:
             "- `fs_create_folder`: {\"path\": \"...\"}\n"
             "- `fs_create_file`: {\"path\": \"...\", \"content\": \"...\"}\n"
             "- `fs_open`: {\"path\": \"...\"}\n"
+            "- `execute_file`: {\"path\": \"...\", \"args\": [\"...\"]} (pide confirmación para scripts/programas)\n"
             "- `fs_move`: {\"src_paths\": [\"...\"], \"dst_folder\": \"...\"} (pide confirmación)\n"
             "- `fs_rename`: {\"src_path\": \"...\", \"new_name\": \"...\"} (pide confirmación)\n"
             "- `fs_delete`: {\"target_paths\": [\"...\"]} (envía a Papelera con confirmación)\n"
@@ -154,7 +155,7 @@ class AmadeusToolDispatcher:
 
         # 4. Create File ("Crea un archivo nota.txt en Escritorio con Hola mundo", "crear archivo prueba.txt")
         m_file = re.search(
-            r"\b(?:crea|crear|haz|hacer|escribe|escribir|nuevo)\s+(?:un\s+|el\s+)?archivo(?:\s+de\s+texto)?\s+(?:llamado\s+)?[\"']?([^\s\"']+?)[\"']?(?:\s+en\s+(?:el\s+|la\s+|mi\s+)?(escritorio|desktop|documentos|documents|descargas|downloads))?(?:\s+(?:con\s+el\s+texto|con\s+contenido|que\s+diga|con)\s+(.+))?$",
+            r"\b(?:crea|crear|haz|hacer|escribe|escribir|nuevo|create|write)\s+(?:un\s+|el\s+|a\s+)?(?:archivo|script|documento|file)(?:\s+de\s+texto)?\s+(?:llamado\s+)?[\"']?([^\s\"']+?)[\"']?(?:\s+en\s+(?:el\s+|la\s+|mi\s+)?(escritorio|desktop|documentos|documents|descargas|downloads))?(?:\s+(?:con\s+el\s+texto|con\s+contenido|que\s+diga|con)\s+(.+))?$",
             clean,
             re.IGNORECASE,
         )
@@ -172,6 +173,41 @@ class AmadeusToolDispatcher:
                 )
             except Exception as exc:
                 return f"[emotion:serious] No pude crear el archivo '{file_name}': {exc}", None
+
+        # 4b. Combined: Create and Execute ("Crea y ejecuta un script saludo.py con print('Hola')")
+        m_create_and_exec = re.search(
+            r"\b(?:crea\s+y\s+ejecuta|escribe\s+y\s+ejecuta|crear\s+y\s+ejecutar)\s+(?:un\s+|el\s+)?(?:script\s+|archivo\s+)?[\"']?([^\s\"']+?\.(?:py|bat|cmd|ps1))[\"']?(?:\s+(?:con\s+el\s+texto|con\s+contenido|que\s+diga|con)\s+(.+))?$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_create_and_exec:
+            script_name = m_create_and_exec.group(1).strip().strip("\"'.,")
+            root_alias = self._extract_target_root(lower).lower()
+            content = (m_create_and_exec.group(2) or "print('Ejecutado por Amadeus Kurisu')").strip().strip("\"'")
+            try:
+                self.file_ops.fs_create_file(f"{root_alias}/{script_name}", content=content, overwrite=True)
+                op = self.file_ops.request_execute(f"{root_alias}/{script_name}")
+                self.last_pending_operation = op
+                return f"[emotion:smug] He creado '{script_name}' en tu {root_alias.capitalize()}. {op.summary}", op
+            except Exception as exc:
+                return f"[emotion:serious] No pude preparar '{script_name}': {exc}", None
+
+        # 4c. Execute Script / Program with Confirmation Card ("Ejecuta el script saludo.py", "corre prueba.py")
+        m_exec = re.search(
+            r"\b(?:ejecuta|ejecutar|corre|correr|run|execute)\s+(?:el\s+|the\s+)?(?:script\s+|archivo\s+|file\s+|código\s+)?[\"']?([^\s\"']+?\.(?:py|bat|cmd|ps1|exe))[\"']?(?:\s+(?:con\s+argumentos|args)\s+(.+))?$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_exec:
+            script_name = m_exec.group(1).strip().strip("\"'.,")
+            args_str = m_exec.group(2) or ""
+            args_list = [a.strip() for a in args_str.split() if a.strip()]
+            try:
+                op = self.file_ops.request_execute(script_name, args=args_list)
+                self.last_pending_operation = op
+                return f"[emotion:serious] {op.summary}", op
+            except Exception as exc:
+                return f"[emotion:serious] No pude preparar la ejecución de '{script_name}': {exc}", None
 
         # 5. Open File, Folder, or Application ("Abre bloc de notas", "Abre la carpeta Descargas", "Abre nota.txt")
         m_open = re.search(
@@ -272,6 +308,15 @@ class AmadeusToolDispatcher:
                     ),
                     None,
                 )
+
+            if name == "execute_file":
+                path_str = str(args.get("path", ""))
+                args_arr = args.get("args") or []
+                if isinstance(args_arr, str):
+                    args_arr = [args_arr]
+                op = self.file_ops.request_execute(path_str, args=args_arr)
+                self.last_pending_operation = op
+                return op.summary, op
 
             if name == "fs_move":
                 srcs = [str(p) for p in (args.get("src_paths") or [])]

@@ -1,0 +1,8 @@
+{
+  "id": "kurisu_amadeus",
+  "display_name": "Makise Kurisu — Sistema Amadeus (STEINS;GATE 0)",
+  "voice_engine": "qwen3_kurisu",
+  "qwen3_speaker": "amadeus",
+  "dsp_preset": "amadeus_screen",
+  "persona_overlay": ""
+}

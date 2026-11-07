@@ -132,6 +132,7 @@ class AmadeusWebSocketBridge:
         self._clients.add(ws)
         try:
             snap = self.system.governor.snapshot()
+            active_sid = getattr(self.system.core, "active_session_id", None) or ""
             await ws.send(
                 json.dumps(
                     {
@@ -140,6 +141,7 @@ class AmadeusWebSocketBridge:
                         "bubbles_mode": self.system.settings.bubbles_mode,
                         "dsp_preset": self.system.settings.dsp_preset,
                         "has_vrm": (self.system.data_dir / "avatar.vrm").exists(),
+                        "active_session_id": active_sid,
                     }
                 )
             )
@@ -214,6 +216,65 @@ class AmadeusWebSocketBridge:
             if hasattr(self.system, "file_ops") and self.system.file_ops is not None:
                 res_text = self.system.file_ops.resolve_pending(op_id, approved=approved)
                 await self._stream_dual_reply_text(res_text)
+            return
+
+        if msg_type == "get_sessions":
+            if hasattr(self.system, "memory") and hasattr(self.system.memory, "list_chat_sessions"):
+                sessions = self.system.memory.list_chat_sessions()
+                active_sid = getattr(self.system.core, "active_session_id", "") or ""
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "sessions_list",
+                            "sessions": sessions,
+                            "active_session_id": active_sid,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+            return
+
+        if msg_type == "delete_session":
+            sid = str(data.get("session_id") or "")
+            if hasattr(self.system, "memory") and hasattr(self.system.memory, "delete_session"):
+                self.system.memory.delete_session(sid)
+                if getattr(self.system.core, "active_session_id", "") == sid:
+                    self.system.core.start_new_session()
+                await self.broadcast({"type": "session_deleted", "session_id": sid})
+            return
+
+        if msg_type == "new_session":
+            title = str(data.get("title") or "")
+            if hasattr(self.system, "core") and hasattr(self.system.core, "start_new_session"):
+                sid = self.system.core.start_new_session(title=title or None)
+                await self.broadcast({"type": "session_created", "session_id": sid, "title": title or "Nueva Conversación"})
+            return
+
+        if msg_type == "switch_session":
+            sid = str(data.get("session_id") or "")
+            if hasattr(self.system, "memory") and hasattr(self.system.memory, "load_recent_messages"):
+                messages = self.system.memory.load_recent_messages(session_id=sid, limit=30)
+                if hasattr(self.system, "core"):
+                    self.system.core.active_session_id = sid
+                    self.system.core._history.clear()
+                    for m in messages:
+                        from amadeus.body.agent_core import AgentMessage, EmotionState
+                        emo = EmotionState.NEUTRAL
+                        if m.get("emotion"):
+                            try:
+                                emo = EmotionState(m["emotion"])
+                            except ValueError:
+                                pass
+                        self.system.core._history.append(
+                            AgentMessage(
+                                role=m["role"],
+                                content=m["content"],
+                                emotion=emo,
+                                timestamp=m.get("timestamp") or "",
+                                metadata=m.get("metadata") or {},
+                            )
+                        )
+                await ws.send(json.dumps({"type": "session_switched", "session_id": sid, "messages": messages}, ensure_ascii=False))
             return
 
         if msg_type == "user_text":

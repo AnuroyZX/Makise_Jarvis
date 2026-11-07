@@ -347,6 +347,47 @@ class SafeFileManager:
         self._pending[op_id] = op
         return op
 
+    def request_execute(
+        self, path: str | Path, args: Optional[List[str]] = None
+    ) -> PendingFileOperation:
+        try:
+            target = self.validate_safe_path(path, must_exist=True)
+        except FileNotFoundError:
+            # Search across allowed roots
+            query_name = Path(str(path).strip().strip("\"'")).name.lower()
+            found: Optional[Path] = None
+            for root in self.get_allowed_roots():
+                candidate = root / query_name
+                if candidate.exists():
+                    found = candidate
+                    break
+                for item in root.iterdir():
+                    if item.name.lower() == query_name or item.stem.lower() == query_name:
+                        found = item
+                        break
+                if found:
+                    break
+            if found is None:
+                raise FileNotFoundError(
+                    f"No encontré el archivo '{path}' para ejecutar en tus carpetas personales."
+                )
+            target = self.validate_safe_path(found, must_exist=True)
+
+        if not target.is_file():
+            raise IsADirectoryError(f"'{target}' es una carpeta, no un archivo ejecutable.")
+
+        op_id = uuid.uuid4().hex[:8]
+        args_list = args or []
+        summary = f"¿Autorizas ejecutar '{target.name}'?"
+        op = PendingFileOperation(
+            op_id=op_id,
+            op_type="execute",
+            summary=summary,
+            items=[(str(target), json.dumps(args_list))],
+        )
+        self._pending[op_id] = op
+        return op
+
     def resolve_pending(self, op_id: str, approved: bool) -> str:
         op = self._pending.pop(op_id, None)
         if op is None:
@@ -354,9 +395,42 @@ class SafeFileManager:
         if op.is_expired:
             return "La solicitud de confirmación caducó por seguridad (más de 2 minutos)."
         if not approved:
-            return "Operación cancelada; no se modificó ningún archivo."
+            return "Operación cancelada; no se modificó ni ejecutó ningún archivo."
 
         batch_id = op.op_id
+        if op.op_type == "execute":
+            import subprocess
+            import sys
+
+            target = Path(op.items[0][0])
+            args_raw = json.loads(op.items[0][1]) if op.items[0][1] else []
+            suf = target.suffix.lower()
+
+            if suf == ".py":
+                cmd = [sys.executable, str(target), *args_raw]
+            elif suf in (".bat", ".cmd"):
+                cmd = [os.environ.get("COMSPEC", "cmd.exe"), "/c", str(target), *args_raw]
+            elif suf == ".ps1":
+                cmd = ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", str(target), *args_raw]
+            else:
+                cmd = [str(target), *args_raw]
+
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=20.0,
+                    shell=False,
+                )
+                output = (proc.stdout or "") + (proc.stderr or "")
+                out_clean = output.strip() or "(Ejecución finalizada sin salida en consola)"
+                return f"Ejecución de '{target.name}' finalizada (código {proc.returncode}).\n---DETALLE---\n{out_clean}"
+            except subprocess.TimeoutExpired:
+                return f"Ejecución de '{target.name}' cancelada: superó el límite de tiempo (20s)."
+            except Exception as exc:
+                return f"Error al ejecutar '{target.name}': {exc}"
+
         if op.op_type in ("move", "rename"):
             for src_str, dst_str in op.items:
                 src = Path(src_str)

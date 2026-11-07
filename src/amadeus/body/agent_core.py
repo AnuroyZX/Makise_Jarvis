@@ -109,6 +109,43 @@ class AmadeusAgentCore:
         # Connect Module 1 -> Module 2 power state listener
         self.governor.register_listener(self._on_power_mode_changed)
         self._register_builtin_commands()
+        self.active_session_id: Optional[str] = None
+        self.restore_recent_session()
+
+    def restore_recent_session(self) -> None:
+        """Preload the most recent conversation session turns into in-memory _history."""
+        if self.memory is None or not hasattr(self.memory, "get_or_create_active_session"):
+            return
+        try:
+            self.active_session_id = self.memory.get_or_create_active_session()
+            recent = self.memory.load_recent_messages(self.active_session_id, limit=16)
+            self._history.clear()
+            for m in recent:
+                emo = EmotionState.NEUTRAL
+                if m.get("emotion"):
+                    try:
+                        emo = EmotionState(m["emotion"])
+                    except ValueError:
+                        pass
+                msg = AgentMessage(
+                    role=m["role"],
+                    content=m["content"],
+                    emotion=emo,
+                    timestamp=m.get("timestamp") or "",
+                    metadata=m.get("metadata") or {},
+                )
+                self._history.append(msg)
+        except Exception:
+            pass
+
+    def start_new_session(self, title: Optional[str] = None) -> str:
+        """Clear active in-memory history and begin a fresh SQLite conversation session."""
+        self._history.clear()
+        if self.memory is not None and hasattr(self.memory, "create_new_session"):
+            self.active_session_id = self.memory.create_new_session(title=title)
+        else:
+            self.active_session_id = None
+        return self.active_session_id or ""
 
     @property
     def history(self) -> List[AgentMessage]:
@@ -160,6 +197,38 @@ class AmadeusAgentCore:
         self.register_command("eco", _cmd_eco)
         self.register_command("wake", _cmd_wake)
 
+        async def _cmd_nueva(args: str, msg: AgentMessage) -> str:
+            title = args.strip() or None
+            self.start_new_session(title=title)
+            return "[emotion:smug] [gesture:nod] He iniciado una nueva sesión de conversación, Okabe. El contexto anterior está guardado en tu historial."
+
+        self.register_command("nueva", _cmd_nueva)
+        self.register_command("new", _cmd_nueva)
+
+    def _persist_turn(self, incoming: AgentMessage, reply: AgentMessage) -> None:
+        if self.memory is None or not hasattr(self.memory, "save_chat_message"):
+            return
+        try:
+            if not self.active_session_id and hasattr(self.memory, "get_or_create_active_session"):
+                self.active_session_id = self.memory.get_or_create_active_session()
+            if self.active_session_id:
+                self.memory.save_chat_message(
+                    self.active_session_id,
+                    incoming.role,
+                    incoming.content,
+                    emotion=incoming.emotion.value,
+                    metadata=incoming.metadata,
+                )
+                self.memory.save_chat_message(
+                    self.active_session_id,
+                    reply.role,
+                    reply.content,
+                    emotion=reply.emotion.value,
+                    metadata=reply.metadata,
+                )
+        except Exception:
+            pass
+
     async def process_user_message(self, incoming: AgentMessage) -> AgentMessage:
         """Main ReAct / message execution pipeline."""
         text = incoming.content.strip()
@@ -205,6 +274,7 @@ class AmadeusAgentCore:
                     await self.memory.record_interaction(
                         incoming.user_id, incoming.content, reply.content
                     )
+                self._persist_turn(incoming, reply)
                 await self._emit_avatar_event(
                     AvatarEvent(
                         event_type="emotion_change",
@@ -288,6 +358,7 @@ class AmadeusAgentCore:
             await self.memory.record_interaction(
                 incoming.user_id, incoming.content, reply.content
             )
+        self._persist_turn(incoming, reply)
 
         # 6. Emit VRoid-ready avatar event
         await self._emit_avatar_event(

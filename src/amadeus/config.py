@@ -58,6 +58,20 @@ def get_default_data_dir() -> Path:
     return path
 
 
+def get_config_dir() -> Path:
+    """Resolve portable config directory containing avatar.vrm, presets, etc."""
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        candidate = exe_dir / "config"
+        if candidate.exists():
+            return candidate
+    project_root = Path(__file__).resolve().parent.parent.parent
+    candidate = project_root / "config"
+    if candidate.exists():
+        return candidate
+    return get_default_data_dir()
+
+
 @dataclass(slots=True)
 class AmadeusSettings:
     """Validated, portable settings for all 9 modules without hardcoded paths."""

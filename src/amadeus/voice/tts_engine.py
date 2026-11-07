@@ -10,6 +10,7 @@ import httpx
 
 from amadeus.config import AmadeusSettings, get_default_data_dir
 from amadeus.voice.qwen3_kurisu_tts import Qwen3KurisuTTSModule
+from amadeus.voice.sanitizer import sanitize_for_speech
 from voicelab.client import VoiceLabSidecarClient
 
 
@@ -79,7 +80,7 @@ class AmadeusVoiceEngine:
         for_telegram_opus: bool = False,
         save_to_disk: bool = False,
     ) -> VoiceSynthesisResult:
-        clean_text = text.strip()
+        clean_text = sanitize_for_speech(text)
         if not clean_text or not self.settings.voice_replies_enabled:
             return VoiceSynthesisResult(
                 audio_bytes=b"", provider="disabled", mime_type="audio/mpeg"

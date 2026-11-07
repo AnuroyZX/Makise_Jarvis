@@ -13,6 +13,13 @@ files:
   - "!**/node_modules/*.d.ts"
   - "!**/node_modules/.bin"
 
+extraResources:
+  - from: "../dist/AmadeusKurisu"
+    to: "engine"
+    filter:
+      - "**/*"
+      - "!**/_internal/torch/**"
+
 win:
   target:
     - target: "nsis"

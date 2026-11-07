@@ -23,21 +23,28 @@ class CoreProcessLink {
   }
 
   resolveCommand() {
+    // 0. Packaged electron app extraResources path
+    const packagedEngineExe = path.join(process.resourcesPath || "", "engine", "AmadeusKurisu.exe");
+    if (fs.existsSync(packagedEngineExe)) {
+      const engineDir = path.dirname(packagedEngineExe);
+      const engineDataDir = path.join(engineDir, "data");
+      const env = {
+        ...process.env,
+        ...(fs.existsSync(engineDataDir) ? { AMADEUS_DATA_DIR: engineDataDir } : {}),
+      };
+      return {
+        cmd: packagedEngineExe,
+        args: ["--headless"],
+        cwd: engineDir,
+        env,
+      };
+    }
+
     const distDataDir = path.join(this.projectRoot, "dist", "AmadeusKurisu", "data");
     const env = {
       ...process.env,
       ...(fs.existsSync(distDataDir) ? { AMADEUS_DATA_DIR: distDataDir } : {}),
     };
-
-    // 0. Packaged electron app extraResources path
-    const packagedEngineExe = path.join(process.resourcesPath || "", "engine", "AmadeusKurisu.exe");
-    if (fs.existsSync(packagedEngineExe)) {
-      return {
-        cmd: packagedEngineExe,
-        args: ["--headless"],
-        env,
-      };
-    }
 
     // 1. Prefer local .venv python when running inside development workspace for instant code sync
     const venvPy = path.join(this.projectRoot, ".venv", "Scripts", "python.exe");
@@ -45,6 +52,7 @@ class CoreProcessLink {
       return {
         cmd: venvPy,
         args: ["-m", "amadeus.main", "--headless"],
+        cwd: this.projectRoot,
         env,
       };
     }
@@ -60,6 +68,7 @@ class CoreProcessLink {
       return {
         cmd: portableExe,
         args: ["--headless"],
+        cwd: path.dirname(portableExe),
         env,
       };
     }
@@ -67,15 +76,16 @@ class CoreProcessLink {
     return {
       cmd: "python",
       args: ["-m", "amadeus.main", "--headless"],
+      cwd: this.projectRoot,
       env,
     };
   }
 
   start() {
     this.stopping = false;
-    const { cmd, args, env } = this.resolveCommand();
+    const { cmd, args, env, cwd } = this.resolveCommand();
     this.proc = spawn(cmd, args, {
-      cwd: this.projectRoot,
+      cwd: cwd || this.projectRoot,
       env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,

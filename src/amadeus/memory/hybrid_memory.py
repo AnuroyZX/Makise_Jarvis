@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+import uuid
 import httpx
 
 from amadeus.config import AmadeusSettings, get_default_data_dir
@@ -72,6 +74,35 @@ class LocalSQLiteMemory:
                 END;
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    emotion TEXT DEFAULT 'neutral',
+                    metadata_json TEXT DEFAULT '{}',
+                    timestamp TEXT NOT NULL,
+                    FOREIGN KEY(session_id) REFERENCES chat_sessions(session_id)
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, id);
+                """
+            )
 
     @staticmethod
     def extract_heuristic_fact(user_msg: str) -> str:
@@ -104,6 +135,25 @@ class LocalSQLiteMemory:
             extracted_fact=fact,
             timestamp=now,
         )
+
+    async def retrieve_context(self, user_id: str, query: str) -> str:
+        records = self.search(user_id, query, limit=4)
+        if not records:
+            return ""
+        formatted = []
+        for rec in records:
+            if rec.extracted_fact:
+                formatted.append(f"• Hecho recordado: {rec.extracted_fact}")
+            else:
+                formatted.append(
+                    f"• Conversación previa: Usuario='{rec.user_message}' -> Kurisu='{rec.assistant_message}'"
+                )
+        return "[Memoria Local SQLite FTS5]:\n" + "\n".join(formatted)
+
+    async def record_interaction(
+        self, user_id: str, user_msg: str, assistant_msg: str
+    ) -> None:
+        self.store(user_id, user_msg, assistant_msg)
 
     def search(self, user_id: str, query: str, limit: int = 5) -> List[MemoryRecord]:
         # Sanitize FTS5 query tokens
@@ -142,6 +192,118 @@ class LocalSQLiteMemory:
                 (user_id, limit),
             ).fetchall()
             return [MemoryRecord(*r) for r in rows]
+
+    # --- Persistent Chat Sessions & Message History ---
+
+    def get_or_create_active_session(self) -> str:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT session_id FROM chat_sessions ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+            if row:
+                return str(row[0])
+            sess_id = uuid.uuid4().hex[:12]
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                "INSERT INTO chat_sessions (session_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (sess_id, "Conversación Principal", now, now),
+            )
+            return sess_id
+
+    def create_new_session(self, title: Optional[str] = None) -> str:
+        sess_id = uuid.uuid4().hex[:12]
+        now = datetime.now(timezone.utc).isoformat()
+        t = title or f"Conversación {now[:10]} {now[11:16]}"
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO chat_sessions (session_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (sess_id, t, now, now),
+            )
+        return sess_id
+
+    def save_chat_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        emotion: str = "neutral",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        meta_str = json.dumps(metadata or {}, ensure_ascii=False)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO chat_messages (session_id, role, content, emotion, metadata_json, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (session_id, role, content, emotion, meta_str, now),
+            )
+            conn.execute(
+                "UPDATE chat_sessions SET updated_at = ? WHERE session_id = ?",
+                (now, session_id),
+            )
+
+    def load_recent_messages(
+        self, session_id: Optional[str] = None, limit: int = 16
+    ) -> List[Dict[str, Any]]:
+        sid = session_id or self.get_or_create_active_session()
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT role, content, emotion, metadata_json, timestamp
+                FROM chat_messages
+                WHERE session_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (sid, limit),
+            ).fetchall()
+            messages = []
+            for r in reversed(rows):
+                try:
+                    meta = json.loads(r[3])
+                except Exception:
+                    meta = {}
+                messages.append(
+                    {
+                        "role": r[0],
+                        "content": r[1],
+                        "emotion": r[2],
+                        "metadata": meta,
+                        "timestamp": r[4],
+                    }
+                )
+            return messages
+
+    def list_chat_sessions(self, limit: int = 12) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT s.session_id, s.title, s.created_at, s.updated_at,
+                       (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id = s.session_id) as msg_count
+                FROM chat_sessions s
+                ORDER BY s.updated_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [
+                {
+                    "session_id": r[0],
+                    "title": r[1],
+                    "created_at": r[2],
+                    "updated_at": r[3],
+                    "msg_count": r[4],
+                }
+                for r in rows
+            ]
+
+    def delete_session(self, session_id: str) -> bool:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
+            res = conn.execute("DELETE FROM chat_sessions WHERE session_id = ?", (session_id,))
+            return res.rowcount > 0
 
 
 class HonchoCloudAdapter:
@@ -259,3 +421,32 @@ class HybridMemoryManager:
                 await self.honcho.record_turn(user_id, user_msg, assistant_msg)
             except Exception:
                 pass
+
+    def get_or_create_active_session(self) -> str:
+        return self.local.get_or_create_active_session()
+
+    def create_new_session(self, title: Optional[str] = None) -> str:
+        return self.local.create_new_session(title=title)
+
+    def save_chat_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        emotion: str = "neutral",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        self.local.save_chat_message(
+            session_id, role, content, emotion=emotion, metadata=metadata
+        )
+
+    def load_recent_messages(
+        self, session_id: Optional[str] = None, limit: int = 16
+    ) -> List[Dict[str, Any]]:
+        return self.local.load_recent_messages(session_id=session_id, limit=limit)
+
+    def list_chat_sessions(self, limit: int = 12) -> List[Dict[str, Any]]:
+        return self.local.list_chat_sessions(limit=limit)
+
+    def delete_session(self, session_id: str) -> bool:
+        return self.local.delete_session(session_id)

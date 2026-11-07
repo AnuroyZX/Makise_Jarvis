@@ -489,7 +489,15 @@ class EphemeralOnboardingServer:
 
     @property
     def vrm_file_path(self) -> Path:
-        return self.system.data_dir / "avatar.vrm"
+        user_vrm = self.system.data_dir / "avatar.vrm"
+        if user_vrm.exists():
+            return user_vrm
+        from amadeus.config import get_config_dir
+
+        bundled_vrm = get_config_dir() / "avatar.vrm"
+        if bundled_vrm.exists():
+            return bundled_vrm
+        return user_vrm
 
     async def start(self) -> str:
         if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
@@ -611,6 +619,11 @@ class EphemeralOnboardingServer:
             await writer.drain()
         except Exception as exc:
             logging.getLogger("amadeus.onboarding_ui").debug("HTTP client error: %s", exc)
+            try:
+                writer.write(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                await writer.drain()
+            except Exception:
+                pass
         finally:
             writer.close()
 
@@ -701,7 +714,8 @@ class EphemeralOnboardingServer:
         if method == "POST" and path == "/api/upload_vrm":
             if not body:
                 return "400 Bad Request", "application/json", b'{"error":"empty_vrm"}'
-            self.vrm_file_path.write_bytes(body)
+            target_vrm = self.system.data_dir / "avatar.vrm"
+            target_vrm.write_bytes(body)
             if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
                 await self.system.ws_bridge.broadcast({"type": "reload_vrm"})
             return (
