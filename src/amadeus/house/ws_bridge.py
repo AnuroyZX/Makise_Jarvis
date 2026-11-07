@@ -133,6 +133,7 @@ class AmadeusWebSocketBridge:
                         "type": "connected",
                         "power_mode": snap.power_mode.value,
                         "bubbles_mode": self.system.settings.bubbles_mode,
+                        "dsp_preset": self.system.settings.dsp_preset,
                         "has_vrm": (self.system.data_dir / "avatar.vrm").exists(),
                     }
                 )

@@ -13,6 +13,7 @@ from amadeus.house.environment_scanner import EnvironmentScanner, HostProfile
 from amadeus.house.onboarding_ui import EphemeralOnboardingServer
 from amadeus.house.resource_governor import PowerMode, ResourceGovernor
 from amadeus.house.ws_bridge import AmadeusWebSocketBridge
+from amadeus.identity.profile_manager import ProfileManager
 from amadeus.identity.soul_manager import SoulManager
 from amadeus.memory.habits import HabitTracker
 from amadeus.memory.hybrid_memory import HybridMemoryManager
@@ -63,11 +64,12 @@ class AmadeusSystem:
             http_client=self._shared_http,
         )
 
-        # Module 4: Identidad y Quién eres
+        # Module 4: Identidad y Quién eres + Perfiles (v3.0)
         self.identity = SoulManager(
             data_dir=self.data_dir,
             user_display_name=self.settings.user_display_name,
         )
+        self.profiles = ProfileManager(data_dir=self.data_dir)
 
         # Module 5: Memoria Híbrida (Honcho + SQLite FTS5) + Aprendizaje (F5)
         self.memory = HybridMemoryManager(

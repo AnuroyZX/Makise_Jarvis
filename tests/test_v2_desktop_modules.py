@@ -344,3 +344,29 @@ async def test_qwen3_kurisu_tts_module() -> None:
         assert out.mime_type == "audio/wav"
         assert out.audio_bytes == b"RIFF_QWEN3_KURISU_WAV"
 
+
+def test_profile_manager_and_zero_config_defaults(tmp_path: Path) -> None:
+    """
+    Verify v3.0 Zero-Config ProfileManager:
+    1. Defaults to `kurisu_amadeus` with `amadeus_screen` DSP preset.
+    2. Switching to `fi_spirit` provides `fi_spirit` DSP preset and analytical overlay.
+    3. Default `AmadeusSettings` uses `active_brain="auto"` (resolving to `"free"` with zero API keys).
+    """
+    from amadeus.identity.profile_manager import ProfileManager
+
+    cfg = AmadeusSettings()
+    assert cfg.active_brain == "auto"
+    assert cfg.active_profile == "kurisu_amadeus"
+    assert cfg.dsp_preset == "amadeus_screen"
+
+    pm = ProfileManager(data_dir=tmp_path)
+    presets = pm.list_profiles()
+    assert len(presets) >= 3
+
+    fi = pm.get_profile("fi_spirit")
+    assert fi.id == "fi_spirit"
+    assert fi.dsp_preset == "fi_spirit"
+    assert "probabilidad" in fi.persona_overlay
+
+
+

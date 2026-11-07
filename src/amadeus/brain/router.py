@@ -35,7 +35,7 @@ class MultiBrainRouter:
     automatically falls back to free models when no API key is configured or a quota error occurs.
     """
 
-    VALID_BRAINS = ("auto", "free", "gemini", "claude", "codex", "openrouter")
+    VALID_BRAINS = ("auto", "free", "gemini", "claude", "codex", "openrouter", "local")
     GEMINI_FALLBACK_CHAIN = (
         "gemini-3-flash-preview",
         "gemini-3.1-flash-lite-preview",
@@ -90,6 +90,8 @@ class MultiBrainRouter:
             return "codex", self.settings.foreground_model_codex
         if choice == "openrouter":
             return "openrouter", self.settings.openrouter_model
+        if choice == "local":
+            return "local", self.settings.local_llm_model
 
         # Smart Routing ("auto"):
         # In BACKGROUND_ECO, prioritize fast/free-tier Gemini Flash Lite if available
@@ -154,6 +156,14 @@ class MultiBrainRouter:
                     model,
                     url="https://api.openai.com/v1/chat/completions",
                     api_key=self.settings.openai_api_key,
+                )
+            elif provider == "local":
+                raw_text = await self._call_openai_compatible(
+                    messages,
+                    system_prompt,
+                    model,
+                    url=self.settings.local_llm_url,
+                    api_key="local-no-key",
                 )
             else:
                 raw_text = await self._call_openai_compatible(

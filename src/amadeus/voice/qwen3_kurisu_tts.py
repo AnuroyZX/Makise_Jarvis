@@ -59,7 +59,7 @@ class Qwen3KurisuTTSModule:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=8.0))
+            self._client = httpx.AsyncClient(timeout=httpx.Timeout(12.0, connect=5.0))
         return self._client
 
     async def close(self) -> None:

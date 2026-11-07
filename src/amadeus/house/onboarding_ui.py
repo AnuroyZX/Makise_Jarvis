@@ -590,6 +590,9 @@ class EphemeralOnboardingServer:
                 "has_vrm": self.vrm_file_path.exists(),
                 "has_kikivoice_ref": (self.system.data_dir / "kikivoice_ref.mp3").exists(),
                 "telegram_allowed_user_ids": self.system.settings.telegram_allowed_user_ids,
+                "active_profile": self.system.settings.active_profile,
+                "dsp_preset": self.system.settings.dsp_preset,
+                "profiles": self.system.profiles.list_profiles(),
                 "voice_engine": self.system.settings.voice_engine,
                 "qwen3_speaker": self.system.settings.qwen3_speaker,
                 "fish_model_id": self.system.settings.fish_model_id,
@@ -691,6 +694,14 @@ class EphemeralOnboardingServer:
 
         if method == "POST" and path == "/api/settings":
             warning = ""
+            if "active_profile" in data and str(data["active_profile"]).strip():
+                prof_id = str(data["active_profile"]).strip()
+                prof = self.system.profiles.get_profile(prof_id)
+                self.system.settings.active_profile = prof.id
+                self.system.settings.voice_engine = prof.voice_engine
+                self.system.settings.qwen3_speaker = prof.qwen3_speaker
+                self.system.settings.dsp_preset = prof.dsp_preset
+
             for key in (
                 "user_display_name",
                 "active_brain",
@@ -701,6 +712,7 @@ class EphemeralOnboardingServer:
                 "honcho_api_key",
                 "voice_engine",
                 "qwen3_speaker",
+                "dsp_preset",
                 "fish_audio_api_key",
                 "fish_model_id",
                 "elevenlabs_api_key",
@@ -710,6 +722,15 @@ class EphemeralOnboardingServer:
             ):
                 if key in data and str(data[key]).strip():
                     setattr(self.system.settings, key, str(data[key]).strip())
+
+            if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+                await self.system.ws_bridge.broadcast(
+                    {
+                        "type": "dsp_changed",
+                        "dsp_preset": self.system.settings.dsp_preset,
+                        "bubbles_mode": self.system.settings.bubbles_mode,
+                    }
+                )
 
             if "extra_api_key" in data and str(data["extra_api_key"]).strip():
                 raw_extra = str(data["extra_api_key"]).strip()

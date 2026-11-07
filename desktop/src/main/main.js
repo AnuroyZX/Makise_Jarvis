@@ -228,10 +228,10 @@ app.whenReady().then(() => {
     onReady: (info) => {
       connectionInfo = info;
       createAvatarWindow();
-      openSettingsPanel();
       setupSystemTray();
       registerShortcuts();
       if (isSmokeTest) {
+        openSettingsPanel();
         setTimeout(async () => {
           try {
             if (avatarWin && !avatarWin.isDestroyed()) {

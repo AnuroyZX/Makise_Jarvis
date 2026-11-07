@@ -162,6 +162,7 @@
   <!-- Soft Air Mini-Dock under Kurisu -->
   <div id="miniDock" class="aero-glass">
     <span class="btn-drag" title="Arrastra aquí para mover a Kurisu">✥ Mover</span>
+    <button id="micBtn" class="btn-air" onclick="toggleVoiceMic()" title="Hablar por micrófono">🎙️ Micro</button>
     <button class="btn-air" onclick="toggleQuickBar()" title="Ctrl+Alt+Espacio">💬 Hablar</button>
     <button class="btn-air" onclick="triggerScreenLook()" title="Ctrl+Alt+V">👁️ Pantalla</button>
     <button class="btn-air" onclick="openPanelWindow()" title="Abrir Ventana Soft Air">⚙️ Panel</button>
@@ -183,12 +184,17 @@ let ws = null;
 let httpUrl = '';
 let pendingOpId = '';
 
-// Open-LLM-VTuber Sequential Sentence Audio Queue + Fault-Tolerant AnalyserNode Lip-Sync
+// Open-LLM-VTuber Sequential Sentence Audio Queue + WebAudio DSP Filter Chain + Lip-Sync
 const audioQueue = [];
 let isPlayingQueue = false;
 let audioCtx = null;
 let analyser = null;
+let highpassNode = null;
+let presenceNode = null;
+let delayNode = null;
+let delayGainNode = null;
 let freqData = null;
+let currentDspPreset = 'amadeus_screen';
 const audioEl = new Audio();
 
 function ensureAudioGraph() {
@@ -199,11 +205,66 @@ function ensureAudioGraph() {
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256;
     freqData = new Uint8Array(analyser.frequencyBinCount);
+
+    highpassNode = audioCtx.createBiquadFilter();
+    presenceNode = audioCtx.createBiquadFilter();
+    delayNode = audioCtx.createDelay(0.5);
+    delayGainNode = audioCtx.createGain();
+
     const mediaSource = audioCtx.createMediaElementSource(audioEl);
-    mediaSource.connect(analyser);
+    mediaSource.connect(highpassNode);
+    highpassNode.connect(presenceNode);
+    presenceNode.connect(analyser);
+
+    // Parallel short metallic/ethereal delay path (for Fi / Amadeus effect)
+    presenceNode.connect(delayNode);
+    delayNode.connect(delayGainNode);
+    delayGainNode.connect(analyser);
+
     analyser.connect(audioCtx.destination);
+    applyAudioDspPreset(currentDspPreset);
   } catch (e) {
     console.warn("WebAudio fallback mode:", e);
+  }
+}
+
+function applyAudioDspPreset(preset) {
+  currentDspPreset = preset || 'amadeus_screen';
+  if (!audioCtx || !highpassNode || !presenceNode || !delayNode || !delayGainNode) return;
+
+  if (currentDspPreset === 'amadeus_screen') {
+    // Steins;Gate 0 Amadeus Digital Monitor EQ (subtle highpass + 3.2kHz digital presence)
+    highpassNode.type = 'highpass';
+    highpassNode.frequency.value = 185;
+    presenceNode.type = 'peaking';
+    presenceNode.frequency.value = 3200;
+    presenceNode.Q.value = 1.1;
+    presenceNode.gain.value = 2.6;
+    delayNode.delayTime.value = 0.012;
+    delayGainNode.gain.value = 0.08;
+  } else if (currentDspPreset === 'fi_spirit') {
+    // Fi (Zelda Skyward Sword) Ethereal / Harmonic Chime Filter (0 MB VRAM)
+    highpassNode.type = 'highpass';
+    highpassNode.frequency.value = 260;
+    presenceNode.type = 'peaking';
+    presenceNode.frequency.value = 2800;
+    presenceNode.Q.value = 2.2;
+    presenceNode.gain.value = 4.5;
+    delayNode.delayTime.value = 0.022;
+    delayGainNode.gain.value = 0.28;
+  } else if (currentDspPreset === 'phone') {
+    highpassNode.type = 'highpass';
+    highpassNode.frequency.value = 380;
+    presenceNode.type = 'lowpass';
+    presenceNode.frequency.value = 3400;
+    delayGainNode.gain.value = 0.0;
+  } else {
+    // 'clean': Studio bypass
+    highpassNode.type = 'highpass';
+    highpassNode.frequency.value = 20;
+    presenceNode.type = 'peaking';
+    presenceNode.gain.value = 0.0;
+    delayGainNode.gain.value = 0.0;
   }
 }
 
@@ -570,6 +631,35 @@ document.getElementById('quickInput').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') window.submitQuickInput();
 });
 
+let activeRecognizer = null;
+window.toggleVoiceMic = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById('micBtn');
+  if (!SR) {
+    window.toggleQuickBar();
+    return;
+  }
+  if (activeRecognizer) {
+    activeRecognizer.stop();
+    return;
+  }
+  activeRecognizer = new SR();
+  activeRecognizer.lang = 'es-ES';
+  activeRecognizer.interimResults = false;
+  activeRecognizer.onresult = (ev) => {
+    const text = ev.results[0][0].transcript.trim();
+    if (text && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'user_text', text }));
+    }
+  };
+  activeRecognizer.onend = () => {
+    activeRecognizer = null;
+    if (btn) btn.textContent = '🎙️ Micro';
+  };
+  if (btn) btn.textContent = '🔴 Escuchando';
+  activeRecognizer.start();
+};
+
 window.toggleQuickBar = () => {
   const bar = document.getElementById('quickInputBar');
   bar.style.display = bar.style.display === 'flex' ? 'none' : 'flex';
@@ -612,6 +702,10 @@ async function initConnection() {
     const msg = JSON.parse(ev.data);
     if (msg.type === 'connected') {
       bubblesMode = msg.bubbles_mode || 'all';
+      if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
+    } else if (msg.type === 'dsp_changed') {
+      if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
+      if (msg.bubbles_mode) bubblesMode = msg.bubbles_mode;
     } else if (msg.type === 'reload_vrm') {
       loadVrmModel(`${httpUrl}/api/avatar.vrm?t=${Date.now()}`);
     } else if (msg.type === 'avatar_pose') {

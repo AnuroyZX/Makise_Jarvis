@@ -45,12 +45,14 @@ class AmadeusSettings:
     """Validated, portable settings for all 9 modules without hardcoded paths."""
 
     # Module 3: Brain settings
-    active_brain: str = "auto"  # auto | free | gemini | claude | codex | openrouter
+    active_brain: str = "auto"  # auto | free | gemini | claude | codex | openrouter | local
     foreground_model_gemini: str = "gemini-3-flash-preview"
     background_model_gemini: str = "gemini-3.1-flash-lite-preview"
     foreground_model_claude: str = "claude-3-7-sonnet-latest"
     foreground_model_codex: str = "gpt-4o"
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    local_llm_url: str = "http://127.0.0.1:11434/v1/chat/completions"
+    local_llm_model: str = "qwen2.5:3b"
 
     gemini_api_key: str = ""
     anthropic_api_key: str = ""
@@ -91,8 +93,10 @@ class AmadeusSettings:
     edge_tts_voice: str = "es-MX-DaliaNeural"
     voice_replies_enabled: bool = True
 
-    # Desktop Companion (Electron Overlay & Bubbles)
-    bubbles_mode: str = "detail_only"  # "off" | "detail_only" | "all"
+    # Desktop Companion (Electron Overlay, Profiles, DSP & Bubbles)
+    active_profile: str = "kurisu_amadeus"  # "kurisu_amadeus" | "kurisu_studio" | "fi_spirit"
+    dsp_preset: str = "amadeus_screen"  # "clean" | "amadeus_screen" | "fi_spirit" | "phone"
+    bubbles_mode: str = "all"  # "off" | "detail_only" | "all"
     wake_word_enabled: bool = True
     wake_word_phrase: str = "oye kurisu"
     allowed_fs_roots: List[str] = field(default_factory=list)
