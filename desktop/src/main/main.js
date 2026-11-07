@@ -62,7 +62,7 @@ function createAvatarWindow() {
 
   const primary = screen.getPrimaryDisplay();
   const wa = primary.workArea;
-  const winW = 420;
+  const winW = 580;
   const winH = 620;
 
   avatarWin = new BrowserWindow({

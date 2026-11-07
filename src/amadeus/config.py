@@ -78,8 +78,9 @@ class AmadeusSettings:
     enable_whatsapp_plugin: bool = False
     whatsapp_bridge_url: str = "http://127.0.0.1:3001"
 
-    # Module 9: Voice (Fish Audio 8750a78673b44b568c08e23eebcea67e + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
-    voice_engine: str = "auto"  # "auto" | "fish" | "gemini_kurisu" | "elevenlabs" | "edge"
+    # Module 9: Voice (Qwen3-TTS Makise Kurisu + Fish Audio + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
+    voice_engine: str = "auto"  # "auto" | "qwen3_kurisu" | "fish" | "gemini_kurisu" | "elevenlabs" | "edge"
+    qwen3_speaker: str = "amadeus"  # "amadeus" | "kurisu" | "phone" (starrydark/Makise_Kurisu_Qwen3_TTS)
     fish_audio_api_key: str = ""
     fish_model_id: str = "8750a78673b44b568c08e23eebcea67e"  # Makise Kurisu (牧濑红莉栖) on Fish Audio
     gemini_tts_voice: str = "Leda"  # Young, calm, smooth anime-timbre voice on Gemini 2.5 Flash TTS

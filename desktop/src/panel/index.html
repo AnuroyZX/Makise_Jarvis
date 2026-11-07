@@ -140,10 +140,18 @@
 
       <label>Motor de Voz de Makise Kurisu</label>
       <select id="voice_engine">
-        <option value="gemini_kurisu">✨ Imitación Kurisu Anime (Gemini 2.5 TTS Leda — Gratis con tu Gemini Key)</option>
+        <option value="qwen3_kurisu">🌟 Qwen3-TTS Makise Kurisu Oficial (starrydark/Makise_Kurisu_Qwen3_TTS)</option>
+        <option value="gemini_kurisu">✨ Imitación Kurisu Anime (Gemini 2.5 TTS Leda)</option>
         <option value="fish">🐟 Fish Audio Oficial (Modelo 8750a78673b44b568c08e23eebcea67e)</option>
         <option value="elevenlabs">🎙️ ElevenLabs (Voz Joven Jessica)</option>
         <option value="edge">⚡ Edge-TTS Joven (+10Hz)</option>
+      </select>
+
+      <label>Variante de Voz en Qwen3-TTS (`starrydark/Makise_Kurisu_Qwen3_TTS`)</label>
+      <select id="qwen3_speaker">
+        <option value="amadeus">Amadeus (Voz del dispositivo en STEINS;GATE 0)</option>
+        <option value="kurisu">Kurisu (Voz original de estudio)</option>
+        <option value="phone">Phone (Llamada telefónica)</option>
       </select>
 
       <label>Fish Audio Model ID (Makise Kurisu / 牧濑红莉栖)</label>
@@ -164,7 +172,8 @@
 
       <div class="btn-bar" style="margin-top:10px;">
         <button style="flex:1;" onclick="saveConfig()">💾 Guardar Configuración</button>
-        <button class="secondary" onclick="playFishReference()">🔊 Muestra Original Fish Audio</button>
+        <button class="secondary" onclick="testQwen3Voice()">🔊 Probar Qwen3-TTS</button>
+        <button class="secondary" onclick="playFishReference()">🔊 Muestra Fish Audio</button>
       </div>
       <audio id="refAudio" style="display:none;"></audio>
     </div>
@@ -230,7 +239,8 @@ async function initPanel() {
     `RAM: ${d.rss_mb} MB | ${d.active_provider}`;
   document.getElementById('user_display_name').value = d.user_display_name || '';
   document.getElementById('active_brain').value = d.active_brain || 'auto';
-  document.getElementById('voice_engine').value = d.voice_engine || 'gemini_kurisu';
+  document.getElementById('voice_engine').value = d.voice_engine || 'qwen3_kurisu';
+  document.getElementById('qwen3_speaker').value = d.qwen3_speaker || 'amadeus';
   document.getElementById('fish_model_id').value = d.fish_model_id || '8750a78673b44b568c08e23eebcea67e';
   document.getElementById('bubbles_mode').value = d.bubbles_mode || 'detail_only';
   document.getElementById('userMdEditor').value = d.user_md || '';
@@ -281,6 +291,12 @@ async function uploadVrm(file) {
     : '❌ Error al subir .vrm';
 }
 
+function testQwen3Voice() {
+  const el = document.getElementById('refAudio');
+  el.src = `${baseUrl}/api/test_qwen3.wav?t=${Date.now()}`;
+  el.play().catch(() => {});
+}
+
 function playFishReference() {
   const el = document.getElementById('refAudio');
   el.src = `${baseUrl}/api/kurisu_reference.mp3?t=${Date.now()}`;
@@ -288,7 +304,7 @@ function playFishReference() {
 }
 
 async function saveConfig() {
-  const fields = ['user_display_name', 'active_brain', 'voice_engine', 'fish_model_id', 'fish_audio_api_key', 'bubbles_mode', 'gemini_api_key'];
+  const fields = ['user_display_name', 'active_brain', 'voice_engine', 'qwen3_speaker', 'fish_model_id', 'fish_audio_api_key', 'bubbles_mode', 'gemini_api_key'];
   const payload = {};
   for (const f of fields) {
     const el = document.getElementById(f);

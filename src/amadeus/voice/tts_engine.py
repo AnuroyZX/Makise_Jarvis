@@ -9,12 +9,13 @@ import wave
 import httpx
 
 from amadeus.config import AmadeusSettings, get_default_data_dir
+from amadeus.voice.qwen3_kurisu_tts import Qwen3KurisuTTSModule
 
 
 @dataclass(slots=True)
 class VoiceSynthesisResult:
     audio_bytes: bytes
-    provider: str  # "fish_audio" | "gemini_kurisu" | "elevenlabs" | "edge_tts" | "disabled"
+    provider: str  # "qwen3_kurisu" | "fish_audio" | "gemini_kurisu" | "elevenlabs" | "edge_tts" | "disabled"
     mime_type: str  # "audio/ogg" | "audio/mpeg" | "audio/wav"
     saved_path: Optional[Path] = None
 
@@ -41,6 +42,10 @@ class AmadeusVoiceEngine:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._external_client = http_client is not None
         self._client = http_client
+        self.qwen3 = Qwen3KurisuTTSModule(
+            speaker=settings.qwen3_speaker,
+            http_client=http_client,
+        )
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -74,6 +79,35 @@ class AmadeusVoiceEngine:
             )
 
         engine = (self.settings.voice_engine or "auto").lower()
+
+        # 0. Independent Qwen3-TTS Makise Kurisu Module (`starrydark/Makise_Kurisu_Qwen3_TTS`)
+        if engine == "qwen3_kurisu" and not for_telegram_opus:
+            try:
+                q_out = await self.qwen3.synthesize(
+                    clean_text, speaker=self.settings.qwen3_speaker
+                )
+                if q_out.audio_bytes:
+                    saved = self._save_audio(q_out.audio_bytes, ".wav") if save_to_disk else None
+                    return VoiceSynthesisResult(
+                        audio_bytes=q_out.audio_bytes,
+                        provider="qwen3_kurisu",
+                        mime_type=q_out.mime_type,
+                        saved_path=saved,
+                    )
+            except Exception:
+                # If Space is busy/offline, fall back gracefully to Gemini Kurisu TTS
+                if self.settings.gemini_api_key:
+                    try:
+                        audio_bytes, mime = await self._call_gemini_kurisu_tts(clean_text)
+                        saved = self._save_audio(audio_bytes, ".wav") if save_to_disk else None
+                        return VoiceSynthesisResult(
+                            audio_bytes=audio_bytes,
+                            provider="gemini_kurisu",
+                            mime_type=mime,
+                            saved_path=saved,
+                        )
+                    except Exception:
+                        pass
 
         # 1. Fish Audio (Model 8750a78673b44b568c08e23eebcea67e — Makise Kurisu)
         if engine in ("auto", "fish") and self.settings.fish_audio_api_key:

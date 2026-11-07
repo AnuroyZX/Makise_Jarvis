@@ -309,3 +309,38 @@ def test_reflection_and_habit_learning(tmp_path: Path) -> None:
     # Second call on the same day must return None (max 1 suggestion per day)
     sug2 = habits.get_habit_suggestion(currently_open_processes=["chrome.exe"], when=check_time)
     assert sug2 is None
+
+
+@pytest.mark.asyncio
+async def test_qwen3_kurisu_tts_module() -> None:
+    """
+    Verify independent `Qwen3KurisuTTSModule` (`starrydark/Makise_Kurisu_Qwen3_TTS`):
+    1. Normalizes tags (`[sigh]`, `[nv]`) and truncates cleanly at <= 195 chars.
+    2. Calls Gradio v5 SSE queue (`/gradio_api/call/generate_speech`) and downloads WAV.
+    """
+    from amadeus.voice.qwen3_kurisu_tts import Qwen3KurisuTTSModule
+
+    def mock_qwen3_space(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("/gradio_api/call/generate_speech"):
+            return httpx.Response(200, json={"event_id": "evt123"})
+        if url.endswith("/gradio_api/call/generate_speech/evt123"):
+            sse_body = (
+                "event: complete\n"
+                'data: [{"url": "https://starrydark-kurisu-qwen3-tts.hf.space/gradio_api/file=/tmp/out.wav"}]\n\n'
+            )
+            return httpx.Response(200, content=sse_body.encode("utf-8"))
+        if url.endswith("/tmp/out.wav"):
+            return httpx.Response(200, content=b"RIFF_QWEN3_KURISU_WAV")
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(mock_qwen3_space)) as client:
+        mod = Qwen3KurisuTTSModule(speaker="amadeus", http_client=client)
+        norm = mod.normalize_text("  [sigh]  Hola **Okabe**, soy Amadeus. ")
+        assert norm == "[sigh]Hola Okabe, soy Amadeus."
+
+        out = await mod.synthesize("Hola Okabe, soy Amadeus.")
+        assert out.speaker == "amadeus"
+        assert out.mime_type == "audio/wav"
+        assert out.audio_bytes == b"RIFF_QWEN3_KURISU_WAV"
+

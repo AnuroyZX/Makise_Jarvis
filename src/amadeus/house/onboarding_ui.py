@@ -590,12 +590,22 @@ class EphemeralOnboardingServer:
                 "has_vrm": self.vrm_file_path.exists(),
                 "telegram_allowed_user_ids": self.system.settings.telegram_allowed_user_ids,
                 "voice_engine": self.system.settings.voice_engine,
+                "qwen3_speaker": self.system.settings.qwen3_speaker,
                 "fish_model_id": self.system.settings.fish_model_id,
                 "elevenlabs_voice_id": self.system.settings.elevenlabs_voice_id,
                 "bubbles_mode": self.system.settings.bubbles_mode,
                 "masked_keys": self.system.settings.masked_summary(),
             }
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
+
+        if method == "GET" and path == "/api/test_qwen3.wav":
+            q_out = await self.system.voice.qwen3.synthesize(
+                "Hola Okabe. Soy el sistema Amadeus con el modelo Qwen tres de Makise Kurisu.",
+                speaker=self.system.settings.qwen3_speaker,
+            )
+            if q_out.audio_bytes:
+                return "200 OK", "audio/wav", q_out.audio_bytes
+            return "500 Internal Server Error", "application/json", b'{"error":"qwen3_failed"}'
 
         if method == "GET" and path == "/api/kurisu_reference.mp3":
             from amadeus.config import get_config_dir
@@ -678,6 +688,7 @@ class EphemeralOnboardingServer:
                 "openrouter_api_key",
                 "honcho_api_key",
                 "voice_engine",
+                "qwen3_speaker",
                 "fish_audio_api_key",
                 "fish_model_id",
                 "elevenlabs_api_key",

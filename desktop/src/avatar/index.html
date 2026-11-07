@@ -11,78 +11,116 @@
     --sky-400: #7cc4fa;
     --sky-600: #2f8fdc;
     --ink: #122840;
-    --glass: rgba(232, 246, 255, 0.72);
-    --glass-edge: rgba(255, 255, 255, 0.88);
+    --glass: rgba(232, 246, 255, 0.78);
+    --glass-edge: rgba(255, 255, 255, 0.92);
   }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
   html, body {
     margin: 0; padding: 0; width: 100%; height: 100%;
     background: transparent; overflow: hidden;
   }
+  /* Dedicated 3D Stage on the right side so lateral dialogues NEVER cover Kurisu */
   #stageCanvas {
-    position: absolute; inset: 0; width: 100%; height: 100%;
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 350px; height: 100%;
+    pointer-events: none;
   }
   /* Windows 7 Aero Gloss + Soft Air Light-Blue Glass Card */
   .aero-glass {
     position: relative;
-    background: linear-gradient(180deg, rgba(255,255,255,0.82) 0%, var(--glass) 48%, rgba(186,226,255,0.68) 100%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.86) 0%, var(--glass) 50%, rgba(186,226,255,0.72) 100%);
     border: 1.5px solid var(--glass-edge);
-    border-radius: 14px;
+    border-radius: 13px;
     color: var(--ink);
-    box-shadow: 0 10px 28px rgba(47, 143, 220, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(16px) saturate(145%);
+    box-shadow: 0 8px 24px rgba(47, 143, 220, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(14px) saturate(145%);
   }
-  #speechBubble {
-    position: absolute; top: 14px; left: 16px; right: 16px;
-    padding: 12px 14px; font-size: 0.88rem; line-height: 1.42;
-    max-height: 220px; overflow-y: auto; display: none; z-index: 20;
+  /* Lateral Dynamic Dialogue Stream (Left Column) */
+  #sideDialogStream {
+    position: absolute;
+    top: 36px;
+    left: 10px;
+    width: 226px;
+    bottom: 112px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 8px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .side-bubble {
+    padding: 9px 12px;
+    font-size: 0.82rem;
+    line-height: 1.38;
+    border-top-right-radius: 4px;
+    opacity: 0;
+    transform: translateX(-14px) scale(0.96);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    pointer-events: auto;
     user-select: text;
+    word-wrap: break-word;
   }
-  #speechBubble pre {
-    background: rgba(18, 40, 64, 0.88); color: #e3f2ff;
-    padding: 8px; border-radius: 8px; overflow-x: auto; font-size: 0.78rem;
+  .side-bubble.visible {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  .side-bubble.exiting {
+    opacity: 0;
+    transform: translateX(-16px) scale(0.92);
+  }
+  .typing-cursor {
+    display: inline-block;
+    color: var(--sky-600);
+    font-weight: 700;
+    animation: blinkCursor 0.6s infinite;
+  }
+  @keyframes blinkCursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
   }
   #confirmCard {
-    position: absolute; top: 245px; left: 20px; right: 20px;
-    padding: 12px; display: none; z-index: 30;
+    position: absolute; bottom: 120px; left: 10px; width: 235px;
+    padding: 11px; display: none; z-index: 30;
   }
   #quickInputBar {
-    position: absolute; bottom: 56px; left: 14px; right: 14px;
-    padding: 8px 10px; display: none; gap: 6px; align-items: center; z-index: 25;
+    position: absolute; bottom: 54px; left: 16px; right: 16px;
+    padding: 7px 10px; display: none; gap: 6px; align-items: center; z-index: 25;
   }
   #miniDock {
-    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 10px; right: 16px;
     display: flex; gap: 6px; padding: 6px 10px; z-index: 22;
     white-space: nowrap; align-items: center;
   }
   .btn-drag {
     -webkit-app-region: drag;
     cursor: grab;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.88);
     color: var(--sky-600);
     border: 1px solid var(--sky-400);
     padding: 6px 9px;
     border-radius: 8px;
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
   #miniDock button {
     -webkit-app-region: no-drag;
   }
   #quickInput {
     flex: 1; border: 1px solid rgba(47,143,220,0.45);
-    background: rgba(255,255,255,0.88); color: var(--ink);
-    padding: 7px 10px; border-radius: 8px; outline: none; font-size: 0.86rem;
+    background: rgba(255,255,255,0.9); color: var(--ink);
+    padding: 7px 10px; border-radius: 8px; outline: none; font-size: 0.84rem;
   }
   .btn-air {
     background: linear-gradient(180deg, #6ec3ff 0%, #2f8fdc 100%);
-    color: #fff; border: 1px solid rgba(255,255,255,0.8);
-    padding: 6px 11px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.8rem;
+    color: #fff; border: 1px solid rgba(255,255,255,0.85);
+    padding: 6px 10px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.78rem;
   }
   #statePill {
-    position: absolute; bottom: 98px; right: 20px;
+    position: absolute; top: 12px; left: 12px;
     padding: 4px 10px; font-size: 0.74rem; font-weight: 600;
-    display: none; z-index: 15;
+    display: none; z-index: 25;
   }
 </style>
 <script type="importmap">
@@ -97,16 +135,15 @@
 </script>
 </head>
 <body>
+  <!-- Lateral Real-Time Typewriter & Self-Erasing Dialogue Stream -->
+  <div id="sideDialogStream"></div>
+
+  <!-- Right-side Unobstructed 3D VRM Stage -->
   <div id="stageCanvas"></div>
 
-  <!-- Configurable Speech / Detail Glass Bubble -->
-  <div id="speechBubble" class="aero-glass" onmouseenter="setInteractive(true)" onmouseleave="setInteractive(false)">
-    <div id="bubbleContent"></div>
-  </div>
-
   <!-- File Operation Confirmation Card -->
-  <div id="confirmCard" class="aero-glass" onmouseenter="setInteractive(true)" onmouseleave="setInteractive(false)">
-    <div id="confirmText" style="font-size:0.84rem; margin-bottom:8px; font-weight:600;"></div>
+  <div id="confirmCard" class="aero-glass">
+    <div id="confirmText" style="font-size:0.82rem; margin-bottom:8px; font-weight:600;"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
       <button class="btn-air" onclick="sendConfirm(true)">✓ Confirmar</button>
       <button class="btn-air" style="background:#64748b;" onclick="sendConfirm(false)">✕ Cancelar</button>
@@ -117,12 +154,12 @@
   <div id="statePill" class="aero-glass">🎙️ Escuchando...</div>
 
   <!-- Floating Quick Input Bar (Ctrl+Alt+Space) -->
-  <div id="quickInputBar" class="aero-glass" onmouseenter="setInteractive(true)" onmouseleave="setInteractive(false)">
+  <div id="quickInputBar" class="aero-glass">
     <input id="quickInput" placeholder="Habla con Kurisu (Enter para enviar, Esc para ocultar)...">
     <button class="btn-air" onclick="submitQuickInput()">Enviar</button>
   </div>
 
-  <!-- Soft Air Mini-Dock under Kurisu (Fixed position, manual drag handle) -->
+  <!-- Soft Air Mini-Dock under Kurisu -->
   <div id="miniDock" class="aero-glass">
     <span class="btn-drag" title="Arrastra aquí para mover a Kurisu">✥ Mover</span>
     <button class="btn-air" onclick="toggleQuickBar()" title="Ctrl+Alt+Espacio">💬 Hablar</button>
@@ -134,14 +171,14 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
-import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from '@pixiv/three-vrm-animation';
+import { VRMAnimationLoaderPlugin } from '@pixiv/three-vrm-animation';
 
 let currentVrm = null;
 let mixer = null;
 let currentEmotion = 'neutral';
 let currentGesture = 'idle';
 let gestureTimer = 0;
-let bubblesMode = 'detail_only';
+let bubblesMode = 'all';
 let ws = null;
 let httpUrl = '';
 let pendingOpId = '';
@@ -170,40 +207,24 @@ function ensureAudioGraph() {
   }
 }
 
-window.setInteractive = (interactive) => {
-  if (window.amadeusDesktop) {
-    window.amadeusDesktop.setIgnoreMouse(!interactive);
-  }
-};
-
-// Hold Alt to pause mouse-dodge and interact directly with Kurisu
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Alt' && window.amadeusDesktop) {
-    window.amadeusDesktop.setDodgeEnabled(false);
-    window.amadeusDesktop.setIgnoreMouse(false);
-  }
   if (e.key === 'Escape') {
     document.getElementById('quickInputBar').style.display = 'none';
-    window.setInteractive(false);
-  }
-});
-window.addEventListener('keyup', (e) => {
-  if (e.key === 'Alt' && window.amadeusDesktop) {
-    window.amadeusDesktop.setDodgeEnabled(true);
-    window.amadeusDesktop.setIgnoreMouse(true);
   }
 });
 
-// 3D Transparent Stage
+// 3D Transparent Stage (Right 350px column)
 const container = document.getElementById('stageCanvas');
+const stageW = 350;
+const stageH = window.innerHeight;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(1.0); // ECC Low-RAM optimization
+renderer.setSize(stageW, stageH);
+renderer.setPixelRatio(1.0);
 container.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(30.0, window.innerWidth / window.innerHeight, 0.1, 20.0);
-camera.position.set(0.0, 1.25, 1.65);
-camera.lookAt(0.0, 1.18, 0.0);
+const camera = new THREE.PerspectiveCamera(28.0, stageW / stageH, 0.1, 20.0);
+camera.position.set(0.0, 1.32, 1.65);
+camera.lookAt(0.0, 1.28, 0.0);
 
 const scene = new THREE.Scene();
 const dirLight = new THREE.DirectionalLight(0xffffff, Math.PI * 0.95);
@@ -217,7 +238,6 @@ loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
 
 function loadVrmModel(url) {
   console.log("Loading VRM from:", url);
-  showBubbleText("Cargando modelo 3D de Makise Kurisu...");
   loader.load(
     url,
     (gltf) => {
@@ -234,21 +254,18 @@ function loadVrmModel(url) {
       scene.add(vrm.scene);
       const box = new THREE.Box3().setFromObject(vrm.scene);
       const height = Math.max(1.2, box.max.y - box.min.y);
-      // Position camera so her full head and upper body sit cleanly below the top speech bubble
-      camera.position.set(0.0, height * 0.86, 1.72);
-      camera.lookAt(0.0, height * 0.84, 0.0);
+      // Full head + upper body framing with zero obstruction above her head
+      camera.position.set(0.0, height * 0.83, 1.62);
+      camera.lookAt(0.0, height * 0.81, 0.0);
       mixer = new THREE.AnimationMixer(vrm.scene);
       applyEmotion(currentEmotion);
-      showBubbleText("Sistema Amadeus en línea. Usa los botones de abajo o Ctrl+Alt+Espacio para hablar conmigo.");
-      setTimeout(() => {
-        const b = document.getElementById('speechBubble');
-        if (b && b.textContent.includes('Sistema Amadeus en línea')) b.style.display = 'none';
-      }, 6000);
+      spawnLateralDialog("Sistema Amadeus en línea.", 3600);
+      setTimeout(() => spawnLateralDialog("¿En qué trabajamos hoy?", 4200), 900);
     },
     undefined,
     (err) => {
       console.error("VRM Load Error:", err?.message || err);
-      showBubbleText("No se encontró avatar.vrm. Abre ⚙️ Panel para cargarlo.");
+      spawnLateralDialog("Abre ⚙️ Panel para cargar tu archivo .vrm.", 6000);
     }
   );
 }
@@ -273,7 +290,6 @@ function triggerGesture(gestureName) {
   gestureTimer = 2.4;
 }
 
-// Procedural 3-Layer Animation Loop (Breathing + Blinking + Gestures + Multi-Vowel Lip-Sync)
 const clock = new THREE.Clock();
 let nextBlinkTime = 3.0;
 let blinkProgress = -1;
@@ -289,7 +305,6 @@ function animate() {
     const hum = currentVrm.humanoid;
     const em = currentVrm.expressionManager;
 
-    // 1. Procedural breathing & subtle idle sway
     const spine = hum?.getNormalizedBoneNode('spine');
     const head = hum?.getNormalizedBoneNode('head');
     const rightArm = hum?.getNormalizedBoneNode('rightUpperArm');
@@ -300,7 +315,6 @@ function animate() {
       spine.rotation.z = Math.cos(elapsed * 1.1) * 0.012;
     }
 
-    // Always apply natural relaxed downward arm posture first, then layer active gesture on top
     const armSign = -1;
     if (rightArm) {
       rightArm.rotation.z = armSign * 1.18 + Math.sin(elapsed * 1.5) * 0.02;
@@ -311,7 +325,6 @@ function animate() {
       leftArm.rotation.x = 0.06;
     }
 
-    // 2. Procedural body gestures (wave, think, nod, shrug, cross_arms, bow)
     if (gestureTimer > 0) {
       gestureTimer -= delta;
       if (head) {
@@ -337,7 +350,6 @@ function animate() {
       head.rotation.z *= 0.9;
     }
 
-    // 3. Natural periodic blinking (every 2.5 - 6s)
     if (em) {
       if (elapsed >= nextBlinkTime) {
         blinkProgress = 0.0;
@@ -350,7 +362,6 @@ function animate() {
         if (blinkProgress >= 2.0) blinkProgress = -1;
       }
 
-      // 4. Real frequency-band Lip-Sync (aa / ih / ou) from WebAudio AnalyserNode + procedural fallback
       if (isPlayingQueue) {
         let low = 0, mid = 0, high = 0;
         if (analyser && freqData) {
@@ -364,7 +375,6 @@ function animate() {
           em.setValue('ih', Math.min(0.8, (high / (24 * 210))));
           em.setValue('ou', Math.min(0.7, (mid / (16 * 220))));
         } else {
-          // Procedural syllabic lip-sync fallback if audio device is muted/unavailable
           em.setValue('aa', Math.max(0.0, Math.sin(elapsed * 16.0) * 0.65));
           em.setValue('ih', Math.max(0.0, Math.cos(elapsed * 11.0) * 0.35));
           em.setValue('ou', Math.max(0.0, Math.sin(elapsed * 7.5) * 0.30));
@@ -382,7 +392,62 @@ function animate() {
 }
 animate();
 
-// Sequential Sentence Audio Queue (Open-LLM-VTuber pattern)
+/**
+ * Spawns a lateral Soft Air dialogue pill on the left side of Kurisu,
+ * writes its text character-by-character in real time, and erases itself
+ * dynamically after `holdMs` so the screen stays clean.
+ */
+function spawnLateralDialog(text, holdMs = 4500) {
+  const clean = (text || '').trim();
+  if (!clean || bubblesMode === 'off') return;
+
+  const stream = document.getElementById('sideDialogStream');
+  // Keep at most 3 lateral bubbles visible at once
+  const activeBubbles = Array.from(stream.querySelectorAll('.side-bubble:not(.exiting)'));
+  while (activeBubbles.length >= 3) {
+    const oldest = activeBubbles.shift();
+    removeBubbleSmoothly(oldest);
+  }
+
+  const bubble = document.createElement('div');
+  bubble.className = 'aero-glass side-bubble';
+  const spanText = document.createElement('span');
+  const cursor = document.createElement('span');
+  cursor.className = 'typing-cursor';
+  cursor.textContent = '▍';
+  bubble.appendChild(spanText);
+  bubble.appendChild(cursor);
+  stream.appendChild(bubble);
+
+  requestAnimationFrame(() => bubble.classList.add('visible'));
+
+  let idx = 0;
+  const charDelay = Math.max(14, Math.min(28, Math.floor(1800 / Math.max(1, clean.length))));
+  const typeTimer = setInterval(() => {
+    idx += 1;
+    spanText.textContent = clean.slice(0, idx);
+    if (idx >= clean.length) {
+      clearInterval(typeTimer);
+      cursor.remove();
+      setTimeout(() => removeBubbleSmoothly(bubble), holdMs);
+    }
+  }, charDelay);
+}
+
+function removeBubbleSmoothly(bubble) {
+  if (!bubble || bubble.classList.contains('exiting')) return;
+  bubble.classList.add('exiting');
+  setTimeout(() => {
+    if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+  }, 300);
+}
+
+function clearAllLateralDialogs() {
+  const stream = document.getElementById('sideDialogStream');
+  Array.from(stream.children).forEach((b) => removeBubbleSmoothly(b));
+}
+
+// Sequential Sentence Audio Queue
 async function playNextSentenceChunk() {
   if (audioQueue.length === 0) {
     isPlayingQueue = false;
@@ -396,12 +461,11 @@ async function playNextSentenceChunk() {
   applyEmotion(item.emotion);
   triggerGesture(item.gesture);
 
-  if (bubblesMode === 'all') {
-    showBubbleText(item.sentence);
-  }
+  // Spawn real-time typewriter lateral bubble for this spoken sentence
+  spawnLateralDialog(item.sentence, 4800);
 
   if (!item.audio_b64) {
-    setTimeout(playNextSentenceChunk, 400);
+    setTimeout(playNextSentenceChunk, 1200);
     return;
   }
 
@@ -419,20 +483,12 @@ async function playNextSentenceChunk() {
   audioEl.play().catch(() => setTimeout(playNextSentenceChunk, 1800));
 }
 
-function showBubbleText(text) {
-  const bubble = document.getElementById('speechBubble');
-  const content = document.getElementById('bubbleContent');
-  content.textContent = text;
-  bubble.style.display = 'block';
-}
-
 window.submitQuickInput = () => {
   const inp = document.getElementById('quickInput');
   const text = inp.value.trim();
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
   inp.value = '';
   document.getElementById('quickInputBar').style.display = 'none';
-  window.setInteractive(false);
   ws.send(JSON.stringify({ type: 'user_text', text }));
 };
 
@@ -462,13 +518,11 @@ window.openPanelWindow = () => {
 
 window.sendConfirm = (approved) => {
   document.getElementById('confirmCard').style.display = 'none';
-  window.setInteractive(false);
   if (ws && ws.readyState === WebSocket.OPEN && pendingOpId) {
     ws.send(JSON.stringify({ type: 'confirm', id: pendingOpId, approved }));
   }
 };
 
-// Connect to Python Headless Core via Authenticated WebSocket
 async function initConnection() {
   if (!window.amadeusDesktop) return;
   const info = await window.amadeusDesktop.getConnectionInfo();
@@ -483,7 +537,7 @@ async function initConnection() {
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === 'connected') {
-      bubblesMode = msg.bubbles_mode || 'detail_only';
+      bubblesMode = msg.bubbles_mode || 'all';
     } else if (msg.type === 'reload_vrm') {
       loadVrmModel(`${httpUrl}/api/avatar.vrm?t=${Date.now()}`);
     } else if (msg.type === 'avatar_pose') {
@@ -493,9 +547,14 @@ async function initConnection() {
       audioQueue.length = 0;
       audioEl.pause();
       isPlayingQueue = false;
+      clearAllLateralDialogs();
     } else if (msg.type === 'reply_detail') {
       if (bubblesMode !== 'off' && msg.detail) {
-        showBubbleText(msg.detail);
+        // Split multi-line detail into lateral cards
+        const lines = msg.detail.split(/\n+/).filter((l) => l.trim());
+        lines.slice(0, 3).forEach((line, i) => {
+          setTimeout(() => spawnLateralDialog(line, 6500), i * 650);
+        });
       }
     } else if (msg.type === 'reply_chunk') {
       audioQueue.push(msg);
@@ -521,13 +580,9 @@ async function initConnection() {
 
   window.amadeusDesktop.onShortcutEvent((action) => {
     if (action === 'toggle-input') {
-      const bar = document.getElementById('quickInputBar');
-      bar.style.display = bar.style.display === 'flex' ? 'none' : 'flex';
-      if (bar.style.display === 'flex') {
-        document.getElementById('quickInput').focus();
-      }
-    } else if (action === 'look-screen' && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'user_text', text: '¿Qué ves en mi pantalla ahora mismo?' }));
+      window.toggleQuickBar();
+    } else if (action === 'look-screen') {
+      window.triggerScreenLook();
     }
   });
 }
