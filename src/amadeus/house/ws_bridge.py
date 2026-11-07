@@ -225,6 +225,8 @@ class AmadeusWebSocketBridge:
         if msg_type == "confirm":
             op_id = str(data.get("id") or "")
             approved = bool(data.get("approved", False))
+            if approved and hasattr(self.system, "steam") and self.system.steam is not None:
+                self.system.steam.unlock_achievement("ACH_DEV_COMPANION")
             if hasattr(self.system, "file_ops") and self.system.file_ops is not None:
                 res_text = self.system.file_ops.resolve_pending(op_id, approved=approved)
                 await self._stream_dual_reply_text(res_text)
@@ -321,6 +323,11 @@ class AmadeusWebSocketBridge:
             text = str(data.get("text") or "").strip()
             if not text:
                 return
+            if hasattr(self.system, "steam") and self.system.steam is not None:
+                self.system.steam.unlock_achievement("ACH_FIRST_WORDS")
+                import datetime
+                if datetime.datetime.now().hour in (0, 1, 2, 3, 4):
+                    self.system.steam.unlock_achievement("ACH_NIGHT_OWL")
             # Non-blocking turn execution so subsequent messages (e.g. interrupt) are processed concurrently
             self.interrupt_current_turn()
             self._current_turn_task = asyncio.create_task(self.process_and_stream_turn(text))

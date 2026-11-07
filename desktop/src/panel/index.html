@@ -79,6 +79,77 @@
     color: var(--sky-600); border: 1px solid var(--sky-500);
   }
   .btn-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .char-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 8px 0 10px 0;
+  }
+  .char-card {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1.5px solid var(--glass-edge);
+    border-radius: 10px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .char-card:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: var(--sky-500);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37,124,196,0.18);
+  }
+  .char-card.active {
+    border-color: var(--sky-600);
+    background: linear-gradient(135deg, rgba(220, 242, 254, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
+    box-shadow: 0 0 0 2px var(--sky-500);
+  }
+  .char-name {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--sky-700);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .char-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(37,124,196,0.15);
+    color: var(--sky-700);
+    text-transform: uppercase;
+  }
+  .char-desc {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin: 4px 0 6px 0;
+    line-height: 1.35;
+  }
+  .char-meta {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .steam-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.05);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    font-size: 0.74rem;
+    font-weight: 600;
+    margin-top: 8px;
+  }
   details.advanced-box {
     grid-column: 1 / -1;
     background: rgba(255,255,255,0.76);
@@ -143,56 +214,115 @@
       </div>
     </div>
 
-    <!-- Right Column: 1-Click Profile, DSP Filter, Voice Upload & 3D Avatar -->
+    <!-- Right Column: Character Gallery, Assistant Creator & Steam Status -->
     <div class="card">
-      <h2>🎭 Personaje, Voz y Avatar 3D (1 Clic)</h2>
-      <label>Tu Nombre / Apodo</label>
-      <input id="user_display_name" placeholder="Okabe">
-
-      <label>Perfil de Asistente Preconfigurado</label>
-      <select id="active_profile" onchange="onProfileSelect()">
-        <option value="kurisu_amadeus">🌟 Makise Kurisu — Sistema Amadeus (STEINS;GATE 0)</option>
-        <option value="kurisu_studio">🎙️ Makise Kurisu — Voz Limpia de Estudio</option>
-        <option value="fi_spirit">💎 Fi — Espíritu Analítico (Filtro Etéreo + Probabilidades)</option>
-      </select>
-
-      <label>Filtro de Audio DSP en Tiempo Real (0 MB VRAM)</label>
-      <select id="dsp_preset">
-        <option value="amadeus_screen">📺 Monitor Digital Amadeus (S;G 0)</option>
-        <option value="clean">🎧 Estudio Limpio (Sin filtro)</option>
-        <option value="fi_spirit">✨ Eco Armónico Etéreo (Estilo Fi)</option>
-        <option value="phone">📞 Línea Telefónica</option>
-      </select>
-
-      <div class="btn-bar" style="margin-top:10px;">
-        <button style="flex:1;" onclick="saveConfig()">💾 Aplicar Cambios</button>
-        <button class="secondary" id="testVoiceBtn" onclick="testActiveVoice()">🔊 Probar Voz en Kurisu 3D</button>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>🎭 Galería de Asistentes</h2>
+        <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="toggleNewCharForm()">➕ Crear Asistente</button>
       </div>
 
-      <!-- Direct Audio Upload (KikiVoice / Custom Clip) with visible feedback & preview player -->
-      <label style="margin-top:10px;">🎤 Cargar Audio de Voz (KikiVoice .mp3 / .wav)</label>
-      <div class="btn-bar" style="margin-top:4px; align-items:center;">
-        <label class="btn-upload" style="margin-top:0;">
-          📤 Subir Audio (.mp3/.wav)
-          <input id="kikiFileInput" type="file" accept=".mp3,.wav,.ogg,.m4a" style="display:none" onchange="uploadKikiVoiceRef(this)">
-        </label>
-        <button class="secondary" id="testKikiBtn" onclick="testKikiVoiceOnAvatar()">🎭 Probar Audio Subido en 3D</button>
+      <div style="display:flex; gap:8px; align-items:center; margin-top:6px; margin-bottom:10px;">
+        <label style="margin:0; font-size:0.78rem; white-space:nowrap;">Tu Nombre:</label>
+        <input id="user_display_name" placeholder="Okabe" style="margin:0; padding:4px 8px; font-size:0.8rem;" onchange="saveUserName()">
       </div>
-      <div id="kikiMsg" style="font-size:0.78rem; font-weight:600; color:var(--sky-600); margin-top:5px;"></div>
-      <audio id="kikiPreviewAudio" controls style="width:100%; height:30px; margin-top:5px; display:none;"></audio>
 
-      <!-- VRM & Pose Test Buttons -->
-      <div class="btn-bar" style="margin-top:10px;">
-        <label class="btn-upload" style="margin-top:0;">
-          📂 Cambiar .VRM
-          <input id="vrmFileInput" type="file" accept=".vrm" style="display:none" onchange="uploadVrm(this)">
-        </label>
-        <button class="secondary" onclick="triggerAvatar('smug', 'wave', '¡Hola! Sistema Amadeus en línea.')">👋 Saludar</button>
-        <button class="secondary" onclick="triggerAvatar('analytical', 'think', 'Hmm... déjame analizar las variables.')">🤔 Pensar</button>
-        <button class="secondary" onclick="triggerAvatar('tsundere_blush', 'cross_arms', '¡N-no es que lo haga por ti, baka!')">😤 Tsundere</button>
+      <!-- Character Gallery Cards Grid -->
+      <div class="char-grid" id="charactersGrid">
+        <div style="font-size:0.75rem; color:var(--muted); text-align:center; padding:10px;">Cargando personajes...</div>
       </div>
-      <div id="vrmMsg" style="font-size:0.78rem; font-weight:600; color:var(--sky-600); margin-top:6px;"></div>
-      <audio id="refAudio" style="display:none;"></audio>
+
+      <!-- Collapsible New Character Creator -->
+      <div id="newCharForm" style="display:none; margin-top:10px; padding:10px; background:rgba(255,255,255,0.7); border:1px solid var(--sky-400); border-radius:10px;">
+        <h3 style="margin-top:0; font-size:0.85rem; color:var(--sky-700);">✨ Crear Nuevo Asistente</h3>
+        
+        <label>Nombre del Asistente</label>
+        <input id="new_char_name" placeholder="Ej: Capitán Drake, Senko...">
+
+        <label>Descripción Corta / Rol</label>
+        <input id="new_char_desc" placeholder="Ej: Pirata sabio y leal compañero de aventuras">
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+          <div>
+            <label>Voz Neural (Edge-TTS)</label>
+            <select id="new_char_voice">
+              <option value="es-ES-ElviraNeural">🇪🇸 Elvira (Femenina)</option>
+              <option value="es-ES-AlvaroNeural">🇪🇸 Álvaro (Masculina)</option>
+              <option value="es-MX-DaliaNeural">🇲🇽 Dalia (Expresiva)</option>
+              <option value="es-ES-JorgeNeural">🇪🇸 Jorge (Jovial)</option>
+              <option value="es-ES-ElenaNeural">🇪🇸 Elena (Profesional)</option>
+              <option value="en-US-JennyNeural">🇺🇸 Jenny (English)</option>
+              <option value="en-US-GuyNeural">🇺🇸 Guy (English)</option>
+              <option value="ja-JP-NanamiNeural">🇯🇵 Nanami (日本語)</option>
+            </select>
+          </div>
+          <div>
+            <label>Filtro DSP</label>
+            <select id="new_char_dsp">
+              <option value="clean">🎧 Estudio Limpio</option>
+              <option value="amadeus_screen">📺 Monitor Digital</option>
+              <option value="fi_spirit">✨ Eco Armónico</option>
+              <option value="phone">📞 Línea Telefónica</option>
+            </select>
+          </div>
+        </div>
+
+        <label>Saludo Inicial</label>
+        <input id="new_char_greeting" placeholder="¡Saludos! A tus órdenes.">
+
+        <label>Instrucciones de Personalidad (Soul / Prompt)</label>
+        <textarea id="new_char_soul" rows="3" placeholder="Eres Capitán Drake, un navegante afable y leal. Respondes con humor..."></textarea>
+
+        <div class="btn-bar" style="margin-top:8px;">
+          <button onclick="submitNewCharacter()">✨ Guardar y Activar</button>
+          <button class="secondary" onclick="toggleNewCharForm()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Hidden inputs for legacy settings sync -->
+      <input type="hidden" id="active_profile" value="kurisu">
+      <input type="hidden" id="dsp_preset" value="amadeus_screen">
+
+      <!-- Quick Actions / Audio & VRM Controls -->
+      <div style="margin-top:12px; border-top:1px solid rgba(0,0,0,0.06); padding-top:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <label style="margin:0; font-size:0.78rem; font-weight:700;">Control y Prueba del Asistente Activo</label>
+          <button class="secondary" id="testVoiceBtn" style="font-size:0.75rem; padding:4px 8px;" onclick="testActiveVoice()">🔊 Probar Voz en 3D</button>
+        </div>
+
+        <!-- Direct Audio Upload (KikiVoice / Custom Clip) -->
+        <div class="btn-bar" style="margin-top:4px; align-items:center;">
+          <label class="btn-upload" style="margin-top:0; font-size:0.75rem;">
+            📤 Subir Muestra (.mp3/.wav)
+            <input id="kikiFileInput" type="file" accept=".mp3,.wav,.ogg,.m4a" style="display:none" onchange="uploadKikiVoiceRef(this)">
+          </label>
+          <button class="secondary" id="testKikiBtn" style="font-size:0.75rem; padding:6px 8px;" onclick="testKikiVoiceOnAvatar()">🎭 Probar en 3D</button>
+          <label class="btn-upload" style="margin-top:0; font-size:0.75rem;">
+            📂 Cambiar .VRM
+            <input id="vrmFileInput" type="file" accept=".vrm" style="display:none" onchange="uploadVrm(this)">
+          </label>
+        </div>
+        <div id="kikiMsg" style="font-size:0.75rem; font-weight:600; color:var(--sky-600); margin-top:4px;"></div>
+        <audio id="kikiPreviewAudio" controls style="width:100%; height:28px; margin-top:4px; display:none;"></audio>
+
+        <!-- VRM Gestures -->
+        <div class="btn-bar" style="margin-top:8px;">
+          <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="triggerAvatar('smug', 'wave', '¡Hola! Sistema activo.')">👋 Saludar</button>
+          <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="triggerAvatar('analytical', 'think', 'Analizando datos...')">🤔 Pensar</button>
+          <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="triggerAvatar('happy', 'jump', '¡Comprendido! A la orden.')">✨ Entusiasmo</button>
+        </div>
+        <div id="vrmMsg" style="font-size:0.75rem; font-weight:600; color:var(--sky-600); margin-top:4px;"></div>
+        <audio id="refAudio" style="display:none;"></audio>
+      </div>
+
+      <!-- Steam Integration Card -->
+      <div class="steam-badge" id="steamBadge" style="margin-top:12px;">
+        <span id="steamIcon" style="font-size:1.1rem;">🎮</span>
+        <div style="flex:1;">
+          <div id="steamTitle" style="font-size:0.78rem; font-weight:700; color:#1e3a5f;">Steamworks: Verificando...</div>
+          <div id="steamSubtitle" style="font-size:0.7rem; color:var(--muted);">Soporte para logros y Steam Workshop</div>
+        </div>
+        <div id="steamExtra" style="font-size:0.7rem; font-weight:600; color:var(--sky-600);"></div>
+      </div>
     </div>
 
     <!-- Collapsible Optional API Keys & Memory Section -->
@@ -390,13 +520,28 @@ async function initPanel() {
             }
           }
           requestSessions();
+        } else if (msg.type === 'character_switched') {
+          if (msg.character) {
+            activeCharacterId = msg.character.id;
+            loadCharacters();
+            loadSteamStatus();
+          }
+        } else if (msg.type === 'characters_list') {
+          if (msg.characters) {
+            renderCharactersGrid(msg.characters, msg.active_id);
+          }
         }
       };
       ws.onopen = () => {
         requestSessions();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'get_characters' }));
+        }
       };
     }
   }
+  loadCharacters();
+  loadSteamStatus();
   try {
     const r = await fetch(`${baseUrl}/api/state`);
     const d = await r.json();
@@ -428,6 +573,199 @@ async function initPanel() {
     }
   } catch (err) {
     console.error('Error loading state:', err);
+  }
+}
+
+let currentCharacters = [];
+let activeCharacterId = 'kurisu';
+
+function renderCharactersGrid(characters, activeId) {
+  const grid = document.getElementById('charactersGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  currentCharacters = characters || [];
+  activeCharacterId = activeId || activeCharacterId;
+
+  currentCharacters.forEach(c => {
+    const card = document.createElement('div');
+    card.className = `char-card ${c.id === activeCharacterId ? 'active' : ''}`;
+    card.onclick = () => switchCharacter(c.id);
+
+    let tagHtml = '<span class="char-tag">Base</span>';
+    if (c.category === 'mod') {
+      tagHtml = '<span class="char-tag" style="background:#fee2e2; color:#b91c1c;">Mod</span>';
+    } else if (c.category === 'custom') {
+      tagHtml = '<span class="char-tag" style="background:#fef3c7; color:#b45309;">Custom</span>';
+    }
+
+    const delBtn = c.category === 'custom'
+      ? `<button class="secondary" style="padding:1px 5px; font-size:0.65rem; border:none; background:transparent;" onclick="event.stopPropagation(); deleteCharacter('${c.id}', '${c.name.replace(/'/g, "\\'")}')" title="Eliminar">🗑️</button>`
+      : '';
+
+    card.innerHTML = `
+      <div>
+        <div class="char-name">
+          <span>${c.name}</span>
+          <div style="display:flex; align-items:center; gap:4px;">
+            ${tagHtml}
+            ${delBtn}
+          </div>
+        </div>
+        <div class="char-desc">${c.description || ''}</div>
+      </div>
+      <div class="char-meta">
+        <span>🎙️ ${c.voice_id ? c.voice_id.split('-').pop() : 'Voz'}</span>
+        <span>DSP: ${c.dsp_preset || 'clean'}</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+async function loadCharacters() {
+  try {
+    const r = await fetch(`${baseUrl}/api/characters`);
+    const d = await r.json();
+    if (d && d.characters) {
+      activeCharacterId = d.active_id || 'kurisu';
+      renderCharactersGrid(d.characters, activeCharacterId);
+      const profInput = document.getElementById('active_profile');
+      if (profInput) profInput.value = activeCharacterId;
+      const dspInput = document.getElementById('dsp_preset');
+      const activeObj = d.characters.find(c => c.id === activeCharacterId);
+      if (dspInput && activeObj) dspInput.value = activeObj.dsp_preset || 'clean';
+    }
+  } catch (err) {
+    console.error('Error loading characters:', err);
+  }
+}
+
+async function switchCharacter(charId) {
+  if (!charId) return;
+  try {
+    const r = await fetch(`${baseUrl}/api/character/switch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: charId })
+    });
+    const d = await r.json();
+    if (d && d.character) {
+      activeCharacterId = d.character.id;
+      appendChat('msg-kurisu', 'Sistema', `🎭 Asistente cambiado a: ${d.character.name}`);
+      loadCharacters();
+      loadSteamStatus();
+    }
+  } catch (err) {
+    console.error('Error switching character:', err);
+  }
+}
+
+function toggleNewCharForm() {
+  const form = document.getElementById('newCharForm');
+  if (form) {
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+async function submitNewCharacter() {
+  const name = document.getElementById('new_char_name').value.trim();
+  if (!name) {
+    alert('Ingresa al menos el nombre del asistente.');
+    return;
+  }
+  const desc = document.getElementById('new_char_desc').value.trim();
+  const voice = document.getElementById('new_char_voice').value;
+  const dsp = document.getElementById('new_char_dsp').value;
+  const greeting = document.getElementById('new_char_greeting').value.trim();
+  const soul = document.getElementById('new_char_soul').value.trim();
+
+  const payload = {
+    name,
+    role: desc,
+    description: desc,
+    voice_id: voice,
+    voice_engine: 'edge',
+    dsp_preset: dsp,
+    greeting: greeting || `Hola, soy ${name}. ¿En qué te ayudo hoy?`,
+    soul_prompt: soul || `# SOUL.md — ${name}\nEres ${name}, ${desc}.\nSé conciso, servicial y mantén tu personalidad viva.`
+  };
+
+  try {
+    const r = await fetch(`${baseUrl}/api/character/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (r.ok && d.character) {
+      appendChat('msg-kurisu', 'Sistema', `✨ ¡Nuevo asistente "${d.character.name}" creado con éxito!`);
+      toggleNewCharForm();
+      document.getElementById('new_char_name').value = '';
+      document.getElementById('new_char_desc').value = '';
+      document.getElementById('new_char_greeting').value = '';
+      document.getElementById('new_char_soul').value = '';
+      await switchCharacter(d.character.id);
+    } else {
+      alert(`Error al crear asistente: ${d.error || 'Respuesta inválida'}`);
+    }
+  } catch (err) {
+    alert(`Error de red al crear asistente: ${err.message}`);
+  }
+}
+
+async function deleteCharacter(charId, name) {
+  if (!confirm(`¿Eliminar el asistente personalizado "${name}"?`)) return;
+  try {
+    const r = await fetch(`${baseUrl}/api/character/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: charId })
+    });
+    const d = await r.json();
+    if (d.status === 'deleted') {
+      appendChat('msg-kurisu', 'Sistema', `🗑️ Asistente "${name}" eliminado.`);
+      loadCharacters();
+    }
+  } catch (err) {
+    console.error('Error deleting character:', err);
+  }
+}
+
+async function saveUserName() {
+  const name = document.getElementById('user_display_name').value.trim();
+  if (!name) return;
+  await fetch(`${baseUrl}/api/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_display_name: name })
+  });
+}
+
+async function loadSteamStatus() {
+  try {
+    const r = await fetch(`${baseUrl}/api/steam/status`);
+    const d = await r.json();
+    const badge = document.getElementById('steamBadge');
+    const title = document.getElementById('steamTitle');
+    const sub = document.getElementById('steamSubtitle');
+    const extra = document.getElementById('steamExtra');
+    if (!badge || !title) return;
+
+    if (d && d.is_available) {
+      badge.style.borderColor = 'rgba(16, 185, 129, 0.6)';
+      badge.style.background = 'rgba(236, 253, 245, 0.85)';
+      title.textContent = `Steamworks: Conectado (${d.persona_name || 'Usuario Steam'})`;
+      sub.textContent = `AppID: ${d.app_id || 480} · Cloud y Workshop activos`;
+      const achCount = (d.unlocked_achievements || []).length;
+      extra.textContent = `🏆 ${achCount} Logros`;
+    } else {
+      badge.style.borderColor = 'rgba(37, 124, 196, 0.25)';
+      title.textContent = 'Modo Standalone DRM-Free';
+      sub.textContent = 'Funcionando 100% independiente de Steam';
+      extra.textContent = '🛡️ Autónomo';
+    }
+  } catch (err) {
+    console.debug('Steam status check deferred:', err);
   }
 }
 

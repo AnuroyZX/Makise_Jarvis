@@ -520,6 +520,9 @@ class EphemeralOnboardingServer:
             self.system.settings.voice_engine = pack.voice_engine
             self.system.settings.save(self.system.data_dir)
 
+        if hasattr(self.system, "steam") and self.system.steam is not None:
+            self.system.steam.unlock_achievement("ACH_MULTIVERSE")
+
         if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
             await self.system.ws_bridge.broadcast({
                 "type": "character_switched",
@@ -695,6 +698,12 @@ class EphemeralOnboardingServer:
         if method == "GET" and path == "/api/ping":
             return "200 OK", "application/json", b'{"status":"alive"}'
 
+        if method == "GET" and path == "/api/steam/status":
+            status = {}
+            if hasattr(self.system, "steam") and self.system.steam is not None:
+                status = self.system.steam.get_status_dict()
+            return "200 OK", "application/json", json.dumps(status).encode("utf-8")
+
         if method == "GET" and path == "/api/state":
             snap = self.system.governor.snapshot()
             prov, mod = self.system.brain.select_provider_and_model(snap.power_mode)
@@ -843,6 +852,8 @@ class EphemeralOnboardingServer:
                 author=author,
                 vrm_bytes=vrm_bytes,
             )
+            if hasattr(self.system, "steam") and self.system.steam is not None:
+                self.system.steam.unlock_achievement("ACH_CREATOR")
             return (
                 "200 OK",
                 "application/json",

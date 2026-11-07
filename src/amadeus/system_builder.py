@@ -13,6 +13,7 @@ from amadeus.house.environment_scanner import EnvironmentScanner, HostProfile
 from amadeus.house.logging_setup import setup_logging
 from amadeus.house.onboarding_ui import EphemeralOnboardingServer
 from amadeus.house.resource_governor import PowerMode, ResourceGovernor
+from amadeus.house.steam_bridge import SteamBridge
 from amadeus.house.ws_bridge import AmadeusWebSocketBridge
 from amadeus.identity.profile_manager import ProfileManager
 from amadeus.identity.soul_manager import SoulManager
@@ -162,6 +163,9 @@ class AmadeusSystem:
 
         # Ephemeral Web UI for Onboarding & Control
         self.web_ui = EphemeralOnboardingServer(system=self)
+
+        # Steamworks & Workshop Bridge
+        self.steam = SteamBridge(project_root=Path(__file__).resolve().parents[2])
 
         # Trim initial startup memory footprint if starting in BACKGROUND_ECO
         if initial_mode == PowerMode.BACKGROUND_ECO:

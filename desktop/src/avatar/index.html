@@ -866,6 +866,11 @@ async function initConnection() {
     } else if (msg.type === 'dsp_changed') {
       if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
       if (msg.bubbles_mode) bubblesMode = msg.bubbles_mode;
+    } else if (msg.type === 'character_switched') {
+      if (msg.character) {
+        if (msg.character.name) document.title = `${msg.character.name} - Amadeus`;
+        if (msg.character.dsp_preset) applyAudioDspPreset(msg.character.dsp_preset);
+      }
     } else if (msg.type === 'reload_vrm') {
       loadVrmModel(`${httpUrl}/api/avatar.vrm?token=${encodeURIComponent(info.wsToken)}&t=${Date.now()}`);
     } else if (msg.type === 'avatar_pose') {
