@@ -124,7 +124,7 @@
 
     <!-- Right Column: Brain, Voice & Memory -->
     <div class="card">
-      <h2>🧠 Cerebro, Voz (ElevenLabs) y Globos</h2>
+      <h2>🧠 Cerebro y Voz Anime (Fish Audio / Gemini Kurisu)</h2>
       <label>Tu Nombre / Apodo</label>
       <input id="user_display_name" placeholder="Okabe">
 
@@ -138,6 +138,20 @@
         <option value="openrouter">OpenRouter</option>
       </select>
 
+      <label>Motor de Voz de Makise Kurisu</label>
+      <select id="voice_engine">
+        <option value="gemini_kurisu">✨ Imitación Kurisu Anime (Gemini 2.5 TTS Leda — Gratis con tu Gemini Key)</option>
+        <option value="fish">🐟 Fish Audio Oficial (Modelo 8750a78673b44b568c08e23eebcea67e)</option>
+        <option value="elevenlabs">🎙️ ElevenLabs (Voz Joven Jessica)</option>
+        <option value="edge">⚡ Edge-TTS Joven (+10Hz)</option>
+      </select>
+
+      <label>Fish Audio Model ID (Makise Kurisu / 牧濑红莉栖)</label>
+      <input id="fish_model_id" value="8750a78673b44b568c08e23eebcea67e">
+
+      <label>Fish Audio API Key (Opcional — para usar el modelo exacto de fish.audio)</label>
+      <input id="fish_audio_api_key" type="password" placeholder="Pega tu clave de fish.audio/es/app/api-keys/">
+
       <label>Modo de Globos junto al Avatar 3D</label>
       <select id="bubbles_mode">
         <option value="detail_only">Solo tarjetas de detalle/código (Voz principal)</option>
@@ -145,16 +159,14 @@
         <option value="off">Solo hablar por voz (sin globos)</option>
       </select>
 
-      <label>Voice ID de ElevenLabs (Timbre Kurisu)</label>
-      <input id="elevenlabs_voice_id" placeholder="FGY2WhTYpPnrIDTdsKH5">
-
       <label>Gemini API Key</label>
       <input id="gemini_api_key" type="password" placeholder="Ya configurada (dejar vacío para mantener)">
 
-      <label>ElevenLabs API Key</label>
-      <input id="elevenlabs_api_key" type="password" placeholder="Ya configurada (dejar vacío para mantener)">
-
-      <button style="margin-top:10px; width:100%;" onclick="saveConfig()">💾 Guardar Configuración</button>
+      <div class="btn-bar" style="margin-top:10px;">
+        <button style="flex:1;" onclick="saveConfig()">💾 Guardar Configuración</button>
+        <button class="secondary" onclick="playFishReference()">🔊 Muestra Original Fish Audio</button>
+      </div>
+      <audio id="refAudio" style="display:none;"></audio>
     </div>
 
     <!-- Full-Width Bottom: Transparent Memory USER.md -->
@@ -218,7 +230,8 @@ async function initPanel() {
     `RAM: ${d.rss_mb} MB | ${d.active_provider}`;
   document.getElementById('user_display_name').value = d.user_display_name || '';
   document.getElementById('active_brain').value = d.active_brain || 'auto';
-  document.getElementById('elevenlabs_voice_id').value = d.elevenlabs_voice_id || '';
+  document.getElementById('voice_engine').value = d.voice_engine || 'gemini_kurisu';
+  document.getElementById('fish_model_id').value = d.fish_model_id || '8750a78673b44b568c08e23eebcea67e';
   document.getElementById('bubbles_mode').value = d.bubbles_mode || 'detail_only';
   document.getElementById('userMdEditor').value = d.user_md || '';
   document.getElementById('vrmMsg').textContent = d.has_vrm
@@ -268,12 +281,18 @@ async function uploadVrm(file) {
     : '❌ Error al subir .vrm';
 }
 
+function playFishReference() {
+  const el = document.getElementById('refAudio');
+  el.src = `${baseUrl}/api/kurisu_reference.mp3?t=${Date.now()}`;
+  el.play().catch(() => {});
+}
+
 async function saveConfig() {
-  const fields = ['user_display_name', 'active_brain', 'elevenlabs_voice_id', 'bubbles_mode', 'gemini_api_key', 'elevenlabs_api_key'];
+  const fields = ['user_display_name', 'active_brain', 'voice_engine', 'fish_model_id', 'fish_audio_api_key', 'bubbles_mode', 'gemini_api_key'];
   const payload = {};
   for (const f of fields) {
-    const val = document.getElementById(f).value.trim();
-    if (val) payload[f] = val;
+    const el = document.getElementById(f);
+    if (el && el.value.trim()) payload[f] = el.value.trim();
   }
   await fetch(`${baseUrl}/api/settings`, {
     method: 'POST',

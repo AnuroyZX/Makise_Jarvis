@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
+import io
 from pathlib import Path
 from typing import Optional
+import wave
 import httpx
 
 from amadeus.config import AmadeusSettings, get_default_data_dir
@@ -11,19 +14,19 @@ from amadeus.config import AmadeusSettings, get_default_data_dir
 @dataclass(slots=True)
 class VoiceSynthesisResult:
     audio_bytes: bytes
-    provider: str  # "elevenlabs" | "edge_tts" | "disabled"
-    mime_type: str  # "audio/ogg" | "audio/mpeg"
+    provider: str  # "fish_audio" | "gemini_kurisu" | "elevenlabs" | "edge_tts" | "disabled"
+    mime_type: str  # "audio/ogg" | "audio/mpeg" | "audio/wav"
     saved_path: Optional[Path] = None
 
 
 class AmadeusVoiceEngine:
     """
     Module 9 (Voz):
-    Synthesizes Makise Kurisu's voice using ElevenLabs API (primary) and automatically
-    falls back to Microsoft Edge-TTS (free, zero local GPU/CPU load) when:
-    1. ElevenLabs API key is not configured,
-    2. Reply length exceeds `elevenlabs_max_chars_per_reply` (Credit Guard), or
-    3. ElevenLabs returns an HTTP/quota error.
+    Synthesizes Makise Kurisu's voice with a 4-tier cascade:
+      1. Fish Audio (`8750a78673b44b568c08e23eebcea67e` — 牧濑红莉栖 / Makise Kurisu) when `fish_audio_api_key` is set.
+      2. Gemini 2.5 Flash TTS (`Leda` + Makise Kurisu / Asami Imai acoustic profile) when `voice_engine == "gemini_kurisu"`.
+      3. ElevenLabs (`eleven_multilingual_v2`) when within Credit Guard character budget.
+      4. Microsoft Edge-TTS (free fallback with young anime pitch/rate tuning).
     """
 
     def __init__(
@@ -41,7 +44,7 @@ class AmadeusVoiceEngine:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=6.0))
+            self._client = httpx.AsyncClient(timeout=httpx.Timeout(22.0, connect=6.0))
         return self._client
 
     async def close(self) -> None:
@@ -70,13 +73,47 @@ class AmadeusVoiceEngine:
                 audio_bytes=b"", provider="disabled", mime_type="audio/mpeg"
             )
 
-        # 1. Try ElevenLabs if Credit Guard allows it
-        if self.should_use_elevenlabs(clean_text):
+        engine = (self.settings.voice_engine or "auto").lower()
+
+        # 1. Fish Audio (Model 8750a78673b44b568c08e23eebcea67e — Makise Kurisu)
+        if engine in ("auto", "fish") and self.settings.fish_audio_api_key:
+            try:
+                audio_bytes, mime = await self._call_fish_audio(clean_text)
+                saved = self._save_audio(audio_bytes, ".mp3") if save_to_disk else None
+                return VoiceSynthesisResult(
+                    audio_bytes=audio_bytes,
+                    provider="fish_audio",
+                    mime_type=mime,
+                    saved_path=saved,
+                )
+            except Exception:
+                pass
+
+        # 2. Gemini 2.5 Flash TTS ('Leda' with Makise Kurisu / Asami Imai acoustic profile)
+        if engine == "gemini_kurisu" and self.settings.gemini_api_key and not for_telegram_opus:
+            try:
+                audio_bytes, mime = await self._call_gemini_kurisu_tts(clean_text)
+                saved = self._save_audio(audio_bytes, ".wav") if save_to_disk else None
+                return VoiceSynthesisResult(
+                    audio_bytes=audio_bytes,
+                    provider="gemini_kurisu",
+                    mime_type=mime,
+                    saved_path=saved,
+                )
+            except Exception:
+                pass
+
+        # 3. ElevenLabs if Credit Guard allows it
+        if engine in ("auto", "elevenlabs") and self.should_use_elevenlabs(clean_text):
             try:
                 audio_bytes, mime = await self._call_elevenlabs(
                     clean_text, for_telegram_opus=for_telegram_opus
                 )
-                saved = self._save_audio(audio_bytes, ".ogg" if for_telegram_opus else ".mp3") if save_to_disk else None
+                saved = (
+                    self._save_audio(audio_bytes, ".ogg" if for_telegram_opus else ".mp3")
+                    if save_to_disk
+                    else None
+                )
                 return VoiceSynthesisResult(
                     audio_bytes=audio_bytes,
                     provider="elevenlabs",
@@ -84,10 +121,9 @@ class AmadeusVoiceEngine:
                     saved_path=saved,
                 )
             except Exception:
-                # Graceful fallback to free Edge-TTS per ECC Clean Code Rule 4
                 pass
 
-        # 2. Fallback to free Edge-TTS
+        # 4. Fallback to free Edge-TTS with young pitch tuning
         audio_bytes = await self._call_edge_tts(clean_text)
         saved = self._save_audio(audio_bytes, ".mp3") if save_to_disk else None
         return VoiceSynthesisResult(
@@ -97,14 +133,80 @@ class AmadeusVoiceEngine:
             saved_path=saved,
         )
 
+    async def _call_fish_audio(self, text: str) -> tuple[bytes, str]:
+        """
+        Calls Fish Audio TTS (`https://api.fish.audio/v1/tts`) with Makise Kurisu's
+        trained model ID (`8750a78673b44b568c08e23eebcea67e`).
+        """
+        client = await self._get_client()
+        headers = {
+            "Authorization": f"Bearer {self.settings.fish_audio_api_key}",
+            "Content-Type": "application/json",
+            "model": "s1",
+        }
+        payload = {
+            "text": text,
+            "reference_id": self.settings.fish_model_id or "8750a78673b44b568c08e23eebcea67e",
+            "format": "mp3",
+            "mp3_bitrate": 128,
+            "latency": "balanced",
+        }
+        resp = await client.post("https://api.fish.audio/v1/tts", headers=headers, json=payload)
+        resp.raise_for_status()
+        return resp.content, "audio/mpeg"
+
+    async def _call_gemini_kurisu_tts(self, text: str) -> tuple[bytes, str]:
+        """
+        Uses Gemini 2.5 Flash Preview TTS (`Leda` voice) directed to imitate the young,
+        calm, smooth, slightly breathy Japanese anime voice of Makise Kurisu (`8750a78673b44b568c08e23eebcea67e`).
+        """
+        client = await self._get_client()
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.5-flash-preview-tts:generateContent?key={self.settings.gemini_api_key}"
+        )
+        style_prompt = (
+            "Speak in a young 18-year-old Japanese anime female voice actress tone "
+            "(like Makise Kurisu / Asami Imai: calm, smooth, slightly breathy, intelligent, "
+            f"youthful, speaking natural Spanish): {text}"
+        )
+        payload = {
+            "contents": [{"parts": [{"text": style_prompt}]}],
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {
+                            "voiceName": self.settings.gemini_tts_voice or "Leda"
+                        }
+                    }
+                },
+            },
+        }
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+        inline = resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]
+        pcm_bytes = base64.b64decode(inline["data"])
+
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(pcm_bytes)
+        return buf.getvalue(), "audio/wav"
+
     async def _call_elevenlabs(
         self, text: str, for_telegram_opus: bool = False
     ) -> tuple[bytes, str]:
         client = await self._get_client()
         output_fmt = "opus_48000_64" if for_telegram_opus else "mp3_44100_128"
+        voice_id = self.settings.elevenlabs_voice_id
+        if voice_id == "EXAVITQu4vr4xnSDxMaL":
+            voice_id = "cgSgspJ2msm6clMCkdW9"
         url = (
             f"https://api.elevenlabs.io/v1/text-to-speech/"
-            f"{self.settings.elevenlabs_voice_id}?output_format={output_fmt}"
+            f"{voice_id}?output_format={output_fmt}"
         )
         headers = {
             "xi-api-key": self.settings.elevenlabs_api_key,
@@ -114,9 +216,9 @@ class AmadeusVoiceEngine:
             "text": text,
             "model_id": self.settings.elevenlabs_model_id,
             "voice_settings": {
-                "stability": 0.55,
+                "stability": 0.50,
                 "similarity_boost": 0.80,
-                "style": 0.25,
+                "style": 0.30,
                 "use_speaker_boost": True,
             },
         }
@@ -126,12 +228,15 @@ class AmadeusVoiceEngine:
         return resp.content, mime
 
     async def _call_edge_tts(self, text: str) -> bytes:
-        """Lazy-import edge_tts per ECC Resource Efficiency Rule 1."""
+        """Lazy-import edge_tts per ECC Resource Efficiency Rule 1, with young anime pitch."""
         try:
             import edge_tts
 
             communicate = edge_tts.Communicate(
-                text=text, voice=self.settings.edge_tts_voice
+                text=text,
+                voice=self.settings.edge_tts_voice,
+                rate="+6%",
+                pitch="+10Hz",
             )
             chunks = bytearray()
             async for chunk in communicate.stream():
@@ -160,12 +265,6 @@ class AmadeusVoiceEngine:
             "simplemente detesto el desorden en el laboratorio. El Psy Kongroo."
         ),
     ) -> dict:
-        """
-        Phase F2 (ElevenLabs Voice Design API + Web Prompt Helper):
-        Attempts to generate custom voice previews via ElevenLabs `/v1/text-to-voice/create-previews`.
-        If the user's ElevenLabs plan is Free (HTTP 403), returns the exact ready-to-paste
-        Voice Design prompt and available account voices.
-        """
         if not self.settings.elevenlabs_api_key:
             return {
                 "status": "no_api_key",
@@ -189,8 +288,5 @@ class AmadeusVoiceEngine:
             "http_status": resp.status_code,
             "web_prompt": voice_description,
             "sample_text": sample_text,
-            "instructions": (
-                "En el plan gratuito de ElevenLabs, crea la voz desde elevenlabs.io/app/voice-lab "
-                "usando esta descripción y pega el Voice ID resultante en el panel."
-            ),
+            "fish_model_id": self.settings.fish_model_id,
         }

@@ -30,10 +30,7 @@ let coreLink = null;
 let avatarWin = null;
 let panelWin = null;
 let tray = null;
-let dodgeInterval = null;
-let dodgeEnabled = false;
 let ecoModeActive = false;
-let inputBarOpen = false;
 let connectionInfo = { wsPort: 0, wsToken: "", httpUrl: "" };
 
 function createTrayEmblem() {
@@ -99,43 +96,7 @@ function createAvatarWindow() {
     }
   });
   avatarWin.loadFile(path.join(__dirname, "..", "avatar", "index.html"));
-
-  startMouseAndHitboxLoop();
   return avatarWin;
-}
-
-function startMouseAndHitboxLoop() {
-  if (dodgeInterval) clearInterval(dodgeInterval);
-  dodgeInterval = setInterval(() => {
-    if (!avatarWin || avatarWin.isDestroyed() || ecoModeActive) return;
-    const cursor = screen.getCursorScreenPoint();
-    const bounds = avatarWin.getBounds();
-
-    // 1. Reliable Windows 11 Hitbox: keep the bottom Soft Air dock & active cards clickable,
-    // while allowing click-through on the upper transparent background when dodge is enabled.
-    const insideX = cursor.x >= bounds.x && cursor.x <= bounds.x + bounds.width;
-    const relY = cursor.y - bounds.y;
-    const inDockOrInputZone = insideX && relY >= bounds.height - (inputBarOpen ? 140 : 75) && relY <= bounds.height;
-
-    if (dodgeEnabled && !inDockOrInputZone) {
-      const display = screen.getDisplayNearestPoint(cursor);
-      const res = computeDodgeTarget({
-        cursorX: cursor.x,
-        cursorY: cursor.y,
-        winX: bounds.x,
-        winY: bounds.y,
-        winWidth: bounds.width,
-        winHeight: bounds.height,
-        workArea: display.workArea,
-        altPressed: false,
-      });
-      if (res.shouldMove) {
-        const stepX = Math.round(bounds.x + (res.targetX - bounds.x) * 0.35);
-        const stepY = Math.round(bounds.y + (res.targetY - bounds.y) * 0.35);
-        avatarWin.setPosition(stepX, stepY, false);
-      }
-    }
-  }, 50);
 }
 
 function openSettingsPanel() {
@@ -203,14 +164,6 @@ function setupSystemTray() {
         }
       },
     },
-    {
-      label: "Activar / Pausar Esquivar Ratón",
-      type: "checkbox",
-      checked: false,
-      click: (item) => {
-        dodgeEnabled = item.checked;
-      },
-    },
     { label: "Alternar Modo Eco (Ahorrar RAM)", click: () => toggleEcoMode() },
     { type: "separator" },
     {
@@ -246,12 +199,8 @@ function registerShortcuts() {
 }
 
 ipcMain.handle("amadeus:get-connection-info", () => connectionInfo);
-ipcMain.on("amadeus:set-ignore-mouse", (_ev, ignore) => {
-  inputBarOpen = !ignore;
-});
-ipcMain.on("amadeus:set-dodge-enabled", (_ev, enabled) => {
-  dodgeEnabled = Boolean(enabled);
-});
+ipcMain.on("amadeus:set-ignore-mouse", () => {});
+ipcMain.on("amadeus:set-dodge-enabled", () => {});
 ipcMain.on("amadeus:open-panel", () => openSettingsPanel());
 
 app.whenReady().then(() => {
@@ -291,6 +240,5 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
-  if (dodgeInterval) clearInterval(dodgeInterval);
   if (coreLink) coreLink.stop();
 });

@@ -53,7 +53,21 @@
   #miniDock {
     position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
     display: flex; gap: 6px; padding: 6px 10px; z-index: 22;
-    white-space: nowrap;
+    white-space: nowrap; align-items: center;
+  }
+  .btn-drag {
+    -webkit-app-region: drag;
+    cursor: grab;
+    background: rgba(255, 255, 255, 0.85);
+    color: var(--sky-600);
+    border: 1px solid var(--sky-400);
+    padding: 6px 9px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+  #miniDock button {
+    -webkit-app-region: no-drag;
   }
   #quickInput {
     flex: 1; border: 1px solid rgba(47,143,220,0.45);
@@ -108,12 +122,12 @@
     <button class="btn-air" onclick="submitQuickInput()">Enviar</button>
   </div>
 
-  <!-- Soft Air Mini-Dock under Kurisu -->
-  <div id="miniDock" class="aero-glass" onmouseenter="setInteractive(true)" onmouseleave="setInteractive(false)">
+  <!-- Soft Air Mini-Dock under Kurisu (Fixed position, manual drag handle) -->
+  <div id="miniDock" class="aero-glass">
+    <span class="btn-drag" title="Arrastra aquí para mover a Kurisu">✥ Mover</span>
     <button class="btn-air" onclick="toggleQuickBar()" title="Ctrl+Alt+Espacio">💬 Hablar</button>
     <button class="btn-air" onclick="triggerScreenLook()" title="Ctrl+Alt+V">👁️ Pantalla</button>
-    <button id="dodgeBtn" class="btn-air" onclick="toggleDodgeMode()" title="Activar/Pausar que esquive el ratón">🧲 Fija</button>
-    <button class="btn-air" onclick="openPanelWindow()" title="Abrir Panel Soft Air">⚙️ Panel</button>
+    <button class="btn-air" onclick="openPanelWindow()" title="Abrir Ventana Soft Air">⚙️ Panel</button>
   </div>
 
 <script type="module">
@@ -437,16 +451,6 @@ window.toggleQuickBar = () => {
 window.triggerScreenLook = () => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'user_text', text: '¿Qué ves en mi pantalla ahora mismo?' }));
-  }
-};
-
-let dodgeActive = false;
-window.toggleDodgeMode = () => {
-  dodgeActive = !dodgeActive;
-  const btn = document.getElementById('dodgeBtn');
-  if (btn) btn.textContent = dodgeActive ? '🧲 Esquiva' : '🧲 Fija';
-  if (window.amadeusDesktop) {
-    window.amadeusDesktop.setDodgeEnabled(dodgeActive);
   }
 };
 

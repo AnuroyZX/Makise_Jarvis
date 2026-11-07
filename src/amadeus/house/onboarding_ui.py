@@ -589,11 +589,20 @@ class EphemeralOnboardingServer:
                 "user_md": self.system.identity.read_user_profile(),
                 "has_vrm": self.vrm_file_path.exists(),
                 "telegram_allowed_user_ids": self.system.settings.telegram_allowed_user_ids,
+                "voice_engine": self.system.settings.voice_engine,
+                "fish_model_id": self.system.settings.fish_model_id,
                 "elevenlabs_voice_id": self.system.settings.elevenlabs_voice_id,
                 "bubbles_mode": self.system.settings.bubbles_mode,
                 "masked_keys": self.system.settings.masked_summary(),
             }
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
+
+        if method == "GET" and path == "/api/kurisu_reference.mp3":
+            from amadeus.config import get_config_dir
+            ref_path = get_config_dir() / "kurisu_reference.mp3"
+            if ref_path.exists():
+                return "200 OK", "audio/mpeg", ref_path.read_bytes()
+            return "404 Not Found", "application/json", b'{"error":"no_ref"}'
 
         if method == "POST" and path == "/api/upload_vrm":
             if not body:
@@ -668,6 +677,9 @@ class EphemeralOnboardingServer:
                 "openai_api_key",
                 "openrouter_api_key",
                 "honcho_api_key",
+                "voice_engine",
+                "fish_audio_api_key",
+                "fish_model_id",
                 "elevenlabs_api_key",
                 "elevenlabs_voice_id",
                 "bubbles_mode",

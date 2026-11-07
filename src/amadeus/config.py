@@ -78,9 +78,13 @@ class AmadeusSettings:
     enable_whatsapp_plugin: bool = False
     whatsapp_bridge_url: str = "http://127.0.0.1:3001"
 
-    # Module 9: Voice (ElevenLabs + Edge-TTS fallback)
+    # Module 9: Voice (Fish Audio 8750a78673b44b568c08e23eebcea67e + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
+    voice_engine: str = "auto"  # "auto" | "fish" | "gemini_kurisu" | "elevenlabs" | "edge"
+    fish_audio_api_key: str = ""
+    fish_model_id: str = "8750a78673b44b568c08e23eebcea67e"  # Makise Kurisu (牧濑红莉栖) on Fish Audio
+    gemini_tts_voice: str = "Leda"  # Young, calm, smooth anime-timbre voice on Gemini 2.5 Flash TTS
     elevenlabs_api_key: str = ""
-    elevenlabs_voice_id: str = "FGY2WhTYpPnrIDTdsKH5"  # Young expressive female voice (or custom Voice Design ID)
+    elevenlabs_voice_id: str = "cgSgspJ2msm6clMCkdW9"  # Young cute female voice (never mature Sarah)
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     elevenlabs_max_chars_per_reply: int = 380  # Credit Guard threshold
     edge_tts_voice: str = "es-MX-DaliaNeural"
@@ -119,6 +123,7 @@ class AmadeusSettings:
             "openai_api_key": "OPENAI_API_KEY",
             "openrouter_api_key": "OPENROUTER_API_KEY",
             "honcho_api_key": "HONCHO_API_KEY",
+            "fish_audio_api_key": "FISH_AUDIO_API_KEY",
             "elevenlabs_api_key": "ELEVENLABS_API_KEY",
             "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
         }
@@ -134,6 +139,9 @@ class AmadeusSettings:
             filtered["foreground_model_gemini"] = "gemini-3-flash-preview"
         if filtered.get("background_model_gemini") in ("gemini-2.5-flash", "gemini-2.0-flash"):
             filtered["background_model_gemini"] = "gemini-3.1-flash-lite-preview"
+        # Migrate old mature 'Sarah' ElevenLabs voice ID to young voice
+        if filtered.get("elevenlabs_voice_id") == "EXAVITQu4vr4xnSDxMaL":
+            filtered["elevenlabs_voice_id"] = "cgSgspJ2msm6clMCkdW9"
         return cls(**filtered)
 
     def save(self, data_dir: Path | None = None) -> Path:
@@ -162,6 +170,7 @@ class AmadeusSettings:
             "openai_api_key": _mask(self.openai_api_key),
             "openrouter_api_key": _mask(self.openrouter_api_key),
             "honcho_api_key": _mask(self.honcho_api_key),
+            "fish_audio_api_key": _mask(self.fish_audio_api_key),
             "elevenlabs_api_key": _mask(self.elevenlabs_api_key),
             "telegram_bot_token": _mask(self.telegram_bot_token),
         }
