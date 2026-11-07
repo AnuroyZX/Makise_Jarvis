@@ -1,402 +1,1045 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' file: http://127.0.0.1:* ws://127.0.0.1:* https://cdn.jsdelivr.net; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: data: http://127.0.0.1:*; connect-src 'self' file: http://127.0.0.1:* ws://127.0.0.1:* https://cdn.jsdelivr.net blob:;">
-<title>Amadeus Kurisu — Ventana Soft Air (Zero-Config)</title>
-<style>
-  :root {
-    --sky-50: #f4faff;
-    --sky-100: #e3f2ff;
-    --sky-200: #c7e5ff;
-    --sky-300: #9fd4ff;
-    --sky-500: #4ba3e8;
-    --sky-600: #257cc4;
-    --ink: #10253b;
-    --muted: #456789;
-    --glass: rgba(238, 248, 255, 0.78);
-    --glass-edge: rgba(255, 255, 255, 0.94);
-  }
-  * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-  body {
-    margin: 0; padding: 18px; min-height: 100vh; color: var(--ink);
-    background:
-      radial-gradient(circle at 15% 15%, rgba(255,255,255,0.88) 0%, transparent 45%),
-      linear-gradient(145deg, #d8eeff 0%, #b3dcff 52%, #cbe7ff 100%);
-  }
-  .aero-window {
-    max-width: 940px; margin: 0 auto;
-    background: linear-gradient(180deg, rgba(255,255,255,0.90) 0%, var(--glass) 48%, rgba(205,233,255,0.74) 100%);
-    border: 1.5px solid var(--glass-edge); border-radius: 18px;
-    padding: 18px 20px;
-    box-shadow: 0 16px 40px rgba(37,124,196,0.22), inset 0 1px 0 rgba(255,255,255,0.98);
-    backdrop-filter: blur(20px) saturate(145%);
-  }
-  header {
-    display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 1.5px solid rgba(37,124,196,0.24); padding-bottom: 10px; margin-bottom: 14px;
-  }
-  header h1 { margin: 0; font-size: 1.25rem; color: var(--sky-600); letter-spacing: 0.4px; }
-  .pill {
-    background: rgba(255,255,255,0.90); border: 1px solid var(--sky-500);
-    color: var(--sky-600); padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
-  }
-  .grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px; }
-  .card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(235,246,255,0.70) 100%);
-    border: 1.5px solid var(--glass-edge);
-    border-radius: 14px; padding: 14px;
-    box-shadow: 0 6px 18px rgba(37,124,196,0.10), inset 0 1px 0 #fff;
-  }
-  .card h2 {
-    margin-top: 0; font-size: 0.95rem; color: var(--sky-600);
-    border-bottom: 1px solid rgba(37,124,196,0.18); padding-bottom: 6px; margin-bottom: 10px;
-  }
-  #chatBox {
-    height: 235px; overflow-y: auto; background: rgba(255,255,255,0.84);
-    border: 1px solid var(--sky-300); border-radius: 10px; padding: 10px 12px;
-    font-size: 0.88rem; line-height: 1.45; margin-bottom: 10px;
-  }
-  .msg { margin-bottom: 8px; padding: 7px 10px; border-radius: 9px; }
-  .msg-user { background: #e3f2ff; border-left: 3px solid var(--sky-600); }
-  .msg-kurisu { background: #ffffff; border-left: 3px solid #38bdf8; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
-  .chat-row { display: flex; gap: 6px; }
-  label { display: block; font-size: 0.78rem; color: var(--muted); margin-top: 8px; font-weight: 600; }
-  input, select, textarea {
-    width: 100%; background: rgba(255,255,255,0.92); border: 1px solid var(--sky-500);
-    color: var(--ink); padding: 7px 10px; border-radius: 8px; margin-top: 3px; font-size: 0.84rem;
-  }
-  textarea { min-height: 88px; font-family: Consolas, monospace; font-size: 0.8rem; }
-  button, .btn-upload {
-    display: inline-block;
-    background: linear-gradient(180deg, #74c7ff 0%, #2f8fdc 100%);
-    color: #fff; font-weight: 600; border: 1px solid rgba(255,255,255,0.9);
-    padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 0.82rem;
-    box-shadow: 0 3px 8px rgba(37,124,196,0.22);
-  }
-  button.secondary {
-    background: linear-gradient(180deg, #ffffff 0%, #dcf0ff 100%);
-    color: var(--sky-600); border: 1px solid var(--sky-500);
-  }
-  .btn-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .char-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin: 8px 0 10px 0;
-  }
-  .char-card {
-    background: rgba(255, 255, 255, 0.72);
-    border: 1.5px solid var(--glass-edge);
-    border-radius: 10px;
-    padding: 8px 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-  }
-  .char-card:hover {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: var(--sky-500);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(37,124,196,0.18);
-  }
-  .char-card.active {
-    border-color: var(--sky-600);
-    background: linear-gradient(135deg, rgba(220, 242, 254, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
-    box-shadow: 0 0 0 2px var(--sky-500);
-  }
-  .char-name {
-    font-size: 0.84rem;
-    font-weight: 700;
-    color: var(--sky-700);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .char-tag {
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: rgba(37,124,196,0.15);
-    color: var(--sky-700);
-    text-transform: uppercase;
-  }
-  .char-desc {
-    font-size: 0.72rem;
-    color: var(--muted);
-    margin: 4px 0 6px 0;
-    line-height: 1.35;
-  }
-  .char-meta {
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: #475569;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .steam-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: rgba(15, 23, 42, 0.05);
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    font-size: 0.74rem;
-    font-weight: 600;
-    margin-top: 8px;
-  }
-  details.advanced-box {
-    grid-column: 1 / -1;
-    background: rgba(255,255,255,0.76);
-    border: 1.5px solid var(--glass-edge);
-    border-radius: 14px;
-    padding: 12px 16px;
-  }
-  details.advanced-box summary {
-    cursor: pointer;
-    font-weight: 700;
-    color: var(--sky-600);
-    font-size: 0.92rem;
-    outline: none;
-  }
-  .adv-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-top: 12px;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>Amadeus — Panel y Asistente</title>
+  <style>
+    :root {
+      --bg-glass-base: rgba(15, 23, 42, 0.78);
+      --bg-glass-card: rgba(30, 41, 59, 0.65);
+      --bg-glass-card-hover: rgba(51, 65, 85, 0.75);
+      --bg-glass-card-active: rgba(37, 99, 235, 0.25);
+      --border-glass: rgba(255, 255, 255, 0.14);
+      --border-glass-glow: rgba(56, 189, 248, 0.45);
+      --border-glass-subtle: rgba(255, 255, 255, 0.08);
+
+      --accent-cyan: #38bdf8;
+      --accent-sky: #0284c7;
+      --accent-blue: #2563eb;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+
+      --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      font-size: 14px;
+    }
+
+    /* Outer Shell: Frameless Glass Container with Curved Borders */
+    #glassApp {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+      background: var(--bg-glass-base);
+      backdrop-filter: blur(32px) saturate(190%);
+      -webkit-backdrop-filter: blur(32px) saturate(190%);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 32px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Top Glass Header & Drag Region */
+    #windowHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+      padding: 0 16px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border-bottom: 1px solid var(--border-glass-subtle);
+      -webkit-app-region: drag;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      -webkit-app-region: drag;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #e0f2fe;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    .header-brand .spark {
+      font-size: 1.05rem;
+      color: var(--accent-cyan);
+      filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.73rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-glass-subtle);
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      -webkit-app-region: no-drag;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: pulseDot 2.2s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    .char-badge-header {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition: all 0.2s ease;
+    }
+    .char-badge-header:hover {
+      background: rgba(56, 189, 248, 0.22);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+
+    /* Window Controls (macOS/Fluent Glass Style) */
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+
+    .win-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .win-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-glass);
+      color: var(--text-main);
+    }
+    .win-btn-close:hover {
+      background: rgba(239, 68, 68, 0.35);
+      border-color: rgba(239, 68, 68, 0.6);
+      color: #fff;
+    }
+
+    /* Main Body: Navigation Rail + Dynamic Sub-Window Viewport */
+    #appBody {
+      display: flex;
+      flex: 1;
+      height: calc(100% - 48px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Vertical Navigation Rail */
+    #navRail {
+      width: 72px;
+      background: rgba(10, 15, 28, 0.55);
+      border-right: 1px solid var(--border-glass-subtle);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 8px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .nav-btn {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-md);
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      cursor: pointer;
+      transition: all 0.22s var(--ease-spring);
+    }
+    .nav-btn .icon {
+      font-size: 1.35rem;
+      line-height: 1;
+      transition: transform 0.2s var(--ease-spring);
+    }
+    .nav-btn .label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .nav-btn:hover {
+      color: #bae6fd;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .nav-btn:hover .icon {
+      transform: scale(1.12);
+    }
+    .nav-btn.active {
+      color: #fff;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(37, 99, 235, 0.35) 100%);
+      border-color: rgba(56, 189, 248, 0.45);
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    /* Dynamic Sub-Window Viewport with 60fps Slide Animations */
+    #subwindowViewport {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at 85% 15%, rgba(56, 189, 248, 0.08) 0%, transparent 60%);
+    }
+
+    .subwindow-pane {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 20px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate3d(24px, 0, 0);
+      transition: opacity 0.28s var(--ease-smooth), transform 0.34s var(--ease-spring);
+    }
+    .subwindow-pane.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate3d(0, 0, 0);
+    }
+    .subwindow-pane::-webkit-scrollbar {
+      width: 6px;
+    }
+    .subwindow-pane::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.1);
+    }
+    .subwindow-pane::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: var(--radius-full);
+    }
+    .subwindow-pane::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.4);
+    }
+
+    /* Common Card Styles in Sub-Windows */
+    .glass-card {
+      background: var(--bg-glass-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glass-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      margin-bottom: 16px;
+    }
+    .glass-card:hover {
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e0f2fe;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Form Controls & Inputs */
+    label {
+      display: block;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-top: 10px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s ease;
+      user-select: text;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    /* Button System with Elastic Haptic Feedback */
+    button, .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 7px 14px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s var(--ease-spring);
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+    }
+    button:hover, .btn:hover {
+      transform: translateY(-1.5px);
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.5);
+      filter: brightness(1.08);
+    }
+    button:active, .btn:active {
+      transform: scale(0.97);
+    }
+
+    button.secondary, .btn.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-glass);
+      color: #e2e8f0;
+      box-shadow: none;
+    }
+    button.secondary:hover, .btn.secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    button.danger, .btn.danger {
+      background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+    }
+
+    /* Sub-Window 1: Chat Styles */
+    #chatBox {
+      flex: 1;
+      min-height: 260px;
+      max-height: calc(100vh - 230px);
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: rgba(10, 15, 28, 0.45);
+      border: 1px solid var(--border-glass-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: 12px;
+      user-select: text;
+    }
+    #chatBox::-webkit-scrollbar { width: 5px; }
+    #chatBox::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-full);
+    }
+
+    .msg {
+      max-width: 82%;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 0.86rem;
+      line-height: 1.5;
+      animation: msgPop 0.22s var(--ease-spring);
+    }
+    @keyframes msgPop {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.35) 0%, rgba(2, 132, 199, 0.4) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #f0f9ff;
+      border-bottom-right-radius: 3px;
+    }
+    .msg-kurisu {
+      align-self: flex-start;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border-glass);
+      color: #f8fafc;
+      border-bottom-left-radius: 3px;
+    }
+    .msg-author {
+      font-size: 0.73rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chat-input-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .chat-input-bar input {
+      flex: 1;
+      height: 40px;
+    }
+
+    .chips-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .chip {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #93c5fd;
+      background: rgba(30, 58, 138, 0.3);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: var(--radius-full);
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .chip:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent-cyan);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* Sub-Window 2: Character Grid Styles */
+    .char-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .char-card {
+      background: var(--bg-glass-card);
+      border: 1px solid var(--border-glass-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.22s var(--ease-spring);
+      position: relative;
+    }
+    .char-card:hover {
+      background: var(--bg-glass-card-hover);
+      border-color: var(--accent-cyan);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 24px rgba(2, 132, 199, 0.22);
+    }
+    .char-card.active {
+      border-color: var(--accent-cyan);
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.3) 0%, rgba(30, 58, 138, 0.45) 100%);
+      box-shadow: 0 0 0 1px var(--accent-cyan), 0 8px 24px rgba(2, 132, 199, 0.3);
+    }
+
+    .char-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .char-name {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #bae6fd;
+    }
+    .char-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: var(--radius-full);
+      background: rgba(56, 189, 248, 0.18);
+      color: #7dd3fc;
+    }
+    .char-desc {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    .char-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: #94a3b8;
+      font-weight: 600;
+      border-top: 1px solid var(--border-glass-subtle);
+      padding-top: 8px;
+    }
+
+    /* Sub-Window 3: Audio & DSP Visualizer */
+    .eq-visualizer {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 38px;
+      padding: 6px 12px;
+      background: rgba(10, 15, 28, 0.6);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-glass-subtle);
+      margin: 10px 0;
+    }
+    .eq-bar {
+      flex: 1;
+      background: linear-gradient(180deg, var(--accent-cyan) 0%, var(--accent-blue) 100%);
+      border-radius: 2px;
+      height: 20%;
+      transition: height 0.15s ease;
+    }
+
+    /* Drawers: 60fps Off-Canvas Lateral Slide Panels */
+    .drawer-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s var(--ease-smooth);
+      z-index: 40;
+    }
+    .drawer-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 380px;
+      max-width: 90%;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(28px) saturate(180%);
+      border: 1px solid var(--border-glass);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      z-index: 50;
+      transition: transform 0.32s var(--ease-spring);
+    }
+    .drawer-left {
+      left: 0;
+      transform: translate3d(-100%, 0, 0);
+      border-right: 1px solid var(--border-glass-glow);
+    }
+    .drawer-right {
+      right: 0;
+      transform: translate3d(100%, 0, 0);
+      border-left: 1px solid var(--border-glass-glow);
+    }
+    .drawer.active {
+      transform: translate3d(0, 0, 0);
+    }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-glass-subtle);
+    }
+    .drawer-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #bae6fd;
+    }
+
+    /* Toast Notification Floating Pill */
+    #toastContainer {
+      position: absolute;
+      top: 56px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 100;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--accent-cyan);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 14px rgba(56, 189, 248, 0.35);
+      border-radius: var(--radius-md);
+      padding: 10px 16px;
+      font-size: 0.82rem;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: toastIn 0.28s var(--ease-spring);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translate3d(0, -10px, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+  </style>
 </head>
 <body>
-<div class="aero-window">
-  <header>
-    <div>
-      <h1>AMADEUS KURISU // PANEL SOFT AIR (LISTO PARA USAR)</h1>
-      <small style="color:var(--muted);">Funciona con Cerebro Gratuito y Voz Qwen3-TTS por defecto · Agrega tu propia API Key abajo si lo deseas</small>
-    </div>
-    <div id="statusBadge" class="pill">Conectando...</div>
-  </header>
 
-  <div class="grid">
-    <!-- Left Column: Live Chat, Mic, Screen Analysis & File Operations -->
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(37,124,196,0.18); padding-bottom:6px;">
-        <h2 style="margin:0; border:none; padding:0;">💬 Consola Directa con Makise Kurisu</h2>
-        <div style="display:flex; gap:5px; align-items:center;">
-          <select id="sessionSelect" style="margin:0; padding:3px 6px; font-size:0.75rem; width:160px;" onchange="onSessionChange(this.value)">
-            <option value="">(Cargando historial...)</option>
-          </select>
-          <button class="secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="createNewSession()" title="Iniciar una nueva conversación limpia">➕ Nueva</button>
-          <button class="secondary" style="padding:4px 6px; font-size:0.75rem;" onclick="deleteCurrentSession()" title="Eliminar conversación del historial">🗑️</button>
-        </div>
+<div id="glassApp">
+  <!-- Top Glass Header & Draggable Region -->
+  <div id="windowHeader">
+    <div class="header-left">
+      <div class="header-brand">
+        <span class="spark">✨</span>
+        <span>Amadeus</span>
       </div>
-      <div id="chatBox">
-        <div class="msg msg-kurisu"><b>Kurisu:</b> Sistema Amadeus en línea. Puedes hablarme por voz (🎙️), escribirme o probar las acciones de escritorio y archivos abajo.</div>
+      <div class="status-badge" id="coreStatusBadge">
+        <div class="status-dot"></div>
+        <span id="coreStatusText">Conectando...</span>
       </div>
-      <div class="chat-row">
-        <button class="secondary" id="panelMicBtn" onclick="togglePanelMic()" title="Hablar por micrófono">🎙️ Micro</button>
-        <input id="chatInput" placeholder="Ej: 'Crea una carpeta Prueba en Escritorio', 'Abre bloc de notas'..." style="margin-top:0;">
-        <button onclick="sendChatMessage()">Enviar</button>
-      </div>
-      <div class="btn-bar">
-        <button class="secondary" onclick="quickPrompt('¿Qué ves en mi pantalla ahora mismo?')">👁️ Analizar mi Pantalla</button>
-        <button class="secondary" onclick="quickPrompt('Lista mis archivos recientes en Descargas')">📂 Ver Descargas</button>
-        <button class="secondary" onclick="quickPrompt('Crea una carpeta Prueba_Amadeus en Escritorio')">📁 Crear Carpeta</button>
-        <button class="secondary" onclick="quickPrompt('Crea un archivo bitacora_kurisu.txt en Escritorio con El Psy Kongroo')">📝 Crear Archivo</button>
-        <button class="secondary" onclick="quickPrompt('Abre bloc de notas')">🪟 Abrir App</button>
-        <button class="secondary" onclick="quickPrompt('/deshacer')">↩️ Deshacer</button>
-        <button class="secondary" onclick="interruptSpeech()">⏹️ Callar Voz</button>
+      <div class="char-badge-header" id="headerActiveCharBadge" onclick="switchSubwindow('characters')">
+        🎭 Kurisu
       </div>
     </div>
 
-    <!-- Right Column: Character Gallery, Assistant Creator & Steam Status -->
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h2>🎭 Galería de Asistentes</h2>
-        <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="toggleNewCharForm()">➕ Crear Asistente</button>
-      </div>
-
-      <div style="display:flex; gap:8px; align-items:center; margin-top:6px; margin-bottom:10px;">
-        <label style="margin:0; font-size:0.78rem; white-space:nowrap;">Tu Nombre:</label>
-        <input id="user_display_name" placeholder="Okabe" style="margin:0; padding:4px 8px; font-size:0.8rem;" onchange="saveUserName()">
-      </div>
-
-      <!-- Character Gallery Cards Grid -->
-      <div class="char-grid" id="charactersGrid">
-        <div style="font-size:0.75rem; color:var(--muted); text-align:center; padding:10px;">Cargando personajes...</div>
-      </div>
-
-      <!-- Collapsible New Character Creator -->
-      <div id="newCharForm" style="display:none; margin-top:10px; padding:10px; background:rgba(255,255,255,0.7); border:1px solid var(--sky-400); border-radius:10px;">
-        <h3 style="margin-top:0; font-size:0.85rem; color:var(--sky-700);">✨ Crear Nuevo Asistente</h3>
-        
-        <label>Nombre del Asistente</label>
-        <input id="new_char_name" placeholder="Ej: Capitán Drake, Senko...">
-
-        <label>Descripción Corta / Rol</label>
-        <input id="new_char_desc" placeholder="Ej: Pirata sabio y leal compañero de aventuras">
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-          <div>
-            <label>Voz Neural (Edge-TTS)</label>
-            <select id="new_char_voice">
-              <option value="es-ES-ElviraNeural">🇪🇸 Elvira (Femenina)</option>
-              <option value="es-ES-AlvaroNeural">🇪🇸 Álvaro (Masculina)</option>
-              <option value="es-MX-DaliaNeural">🇲🇽 Dalia (Expresiva)</option>
-              <option value="es-ES-JorgeNeural">🇪🇸 Jorge (Jovial)</option>
-              <option value="es-ES-ElenaNeural">🇪🇸 Elena (Profesional)</option>
-              <option value="en-US-JennyNeural">🇺🇸 Jenny (English)</option>
-              <option value="en-US-GuyNeural">🇺🇸 Guy (English)</option>
-              <option value="ja-JP-NanamiNeural">🇯🇵 Nanami (日本語)</option>
-            </select>
-          </div>
-          <div>
-            <label>Filtro DSP</label>
-            <select id="new_char_dsp">
-              <option value="clean">🎧 Estudio Limpio</option>
-              <option value="amadeus_screen">📺 Monitor Digital</option>
-              <option value="fi_spirit">✨ Eco Armónico</option>
-              <option value="phone">📞 Línea Telefónica</option>
-            </select>
-          </div>
-        </div>
-
-        <label>Saludo Inicial</label>
-        <input id="new_char_greeting" placeholder="¡Saludos! A tus órdenes.">
-
-        <label>Instrucciones de Personalidad (Soul / Prompt)</label>
-        <textarea id="new_char_soul" rows="3" placeholder="Eres Capitán Drake, un navegante afable y leal. Respondes con humor..."></textarea>
-
-        <div class="btn-bar" style="margin-top:8px;">
-          <button onclick="submitNewCharacter()">✨ Guardar y Activar</button>
-          <button class="secondary" onclick="toggleNewCharForm()">Cancelar</button>
-        </div>
-      </div>
-
-      <!-- Hidden inputs for legacy settings sync -->
-      <input type="hidden" id="active_profile" value="kurisu">
-      <input type="hidden" id="dsp_preset" value="amadeus_screen">
-
-      <!-- Quick Actions / Audio & VRM Controls -->
-      <div style="margin-top:12px; border-top:1px solid rgba(0,0,0,0.06); padding-top:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <label style="margin:0; font-size:0.78rem; font-weight:700;">Control y Prueba del Asistente Activo</label>
-          <button class="secondary" id="testVoiceBtn" style="font-size:0.75rem; padding:4px 8px;" onclick="testActiveVoice()">🔊 Probar Voz en 3D</button>
-        </div>
-
-        <!-- Direct Audio Upload (KikiVoice / Custom Clip) -->
-        <div class="btn-bar" style="margin-top:4px; align-items:center;">
-          <label class="btn-upload" style="margin-top:0; font-size:0.75rem;">
-            📤 Subir Muestra (.mp3/.wav)
-            <input id="kikiFileInput" type="file" accept=".mp3,.wav,.ogg,.m4a" style="display:none" onchange="uploadKikiVoiceRef(this)">
-          </label>
-          <button class="secondary" id="testKikiBtn" style="font-size:0.75rem; padding:6px 8px;" onclick="testKikiVoiceOnAvatar()">🎭 Probar en 3D</button>
-          <label class="btn-upload" style="margin-top:0; font-size:0.75rem;">
-            📂 Cambiar .VRM
-            <input id="vrmFileInput" type="file" accept=".vrm" style="display:none" onchange="uploadVrm(this)">
-          </label>
-        </div>
-        <div id="kikiMsg" style="font-size:0.75rem; font-weight:600; color:var(--sky-600); margin-top:4px;"></div>
-        <audio id="kikiPreviewAudio" controls style="width:100%; height:28px; margin-top:4px; display:none;"></audio>
-
-        <!-- VRM Gestures -->
-        <div class="btn-bar" style="margin-top:8px;">
-          <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="triggerAvatar('smug', 'wave', '¡Hola! Sistema activo.')">👋 Saludar</button>
-          <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="triggerAvatar('analytical', 'think', 'Analizando datos...')">🤔 Pensar</button>
-          <button class="secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="triggerAvatar('happy', 'jump', '¡Comprendido! A la orden.')">✨ Entusiasmo</button>
-        </div>
-        <div id="vrmMsg" style="font-size:0.75rem; font-weight:600; color:var(--sky-600); margin-top:4px;"></div>
-        <audio id="refAudio" style="display:none;"></audio>
-      </div>
-
-      <!-- Steam Integration Card -->
-      <div class="steam-badge" id="steamBadge" style="margin-top:12px;">
-        <span id="steamIcon" style="font-size:1.1rem;">🎮</span>
-        <div style="flex:1;">
-          <div id="steamTitle" style="font-size:0.78rem; font-weight:700; color:#1e3a5f;">Steamworks: Verificando...</div>
-          <div id="steamSubtitle" style="font-size:0.7rem; color:var(--muted);">Soporte para logros y Steam Workshop</div>
-        </div>
-        <div id="steamExtra" style="font-size:0.7rem; font-weight:600; color:var(--sky-600);"></div>
-      </div>
+    <!-- Window Controls: Minimize, Maximize, Close -->
+    <div class="header-controls">
+      <button class="win-btn" onclick="onWinMinimize()" title="Minimizar">🗕</button>
+      <button class="win-btn" onclick="onWinMaximize()" title="Maximizar / Restaurar">🗖</button>
+      <button class="win-btn win-btn-close" onclick="onWinClose()" title="Cerrar">✕</button>
     </div>
-
-    <!-- Collapsible Optional API Keys & Memory Section -->
-    <details class="advanced-box">
-      <summary>🔧 Agregar tu propia API Key / Configuración Avanzada (Opcional — Ya funciona gratis por defecto)</summary>
-      <div class="adv-grid">
-        <div>
-          <label>Cerebro Activo</label>
-          <select id="active_brain">
-            <option value="auto">Auto (Usa tu API Key si agregas una, o el Cerebro Gratuito por defecto)</option>
-            <option value="free">Gratis Directo (Sin API Key — 0 configuración)</option>
-            <option value="gemini">Google Gemini (Recomendado con API Key gratuita de Google AI Studio)</option>
-            <option value="claude">Anthropic Claude</option>
-            <option value="codex">OpenAI GPT / Codex</option>
-            <option value="openrouter">OpenRouter</option>
-            <option value="local">Local Offline (Ollama / LM Studio en 127.0.0.1)</option>
-          </select>
-
-          <label>Agregar Gemini API Key (`AIza...`)</label>
-          <input id="gemini_api_key" type="password" placeholder="Opcional: pega aquí tu clave de Gemini">
-
-          <label>Agregar otra API Key (`sk-ant-...` Claude, `sk-or-...` OpenRouter, `sk-...` OpenAI)</label>
-          <input id="extra_api_key" type="password" placeholder="Opcional: se detecta automáticamente por prefijo">
-
-          <label>Motor de Voz Específico</label>
-          <select id="voice_engine">
-            <option value="qwen3_kurisu">🌟 Qwen3-TTS Makise Kurisu Oficial (Gratis sin API Key)</option>
-            <option value="gemini_kurisu">✨ Gemini 2.5 TTS Leda (Requiere Gemini API Key)</option>
-            <option value="fish">🐟 Fish Audio Oficial (Modelo 8750a78673b44b568c08e23eebcea67e o KikiVoice)</option>
-            <option value="edge">⚡ Edge-TTS Joven Instantáneo (0 latencia + Filtro DSP)</option>
-          </select>
-
-          <label>Variante Qwen3-TTS (`amadeus` | `kurisu` | `phone`)</label>
-          <select id="qwen3_speaker">
-            <option value="amadeus">Amadeus (Dispositivo STEINS;GATE 0)</option>
-            <option value="kurisu">Kurisu (Estudio)</option>
-            <option value="phone">Phone (Teléfono)</option>
-          </select>
-        </div>
-
-        <div>
-          <label>Fish Audio API Key (Opcional para clonar tu muestra de KikiVoice en vivo)</label>
-          <div style="display:flex; gap:6px;">
-            <input id="fish_audio_api_key" type="password" placeholder="Opcional: clave de fish.audio">
-            <button class="secondary" style="margin-top:4px; font-size:0.8rem; white-space:nowrap; padding:6px 10px;" onclick="syncFishAgent()">🔄 Sincronizar Agente</button>
-          </div>
-
-          <label>Memoria Aprendida del Usuario (`USER.md`)</label>
-          <textarea id="userMdEditor"></textarea>
-
-          <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer;">
-            <input type="checkbox" id="cloud_vision_consent" style="width:auto; margin:0;">
-            <span style="font-size:0.85rem;">Privacidad: Permitir análisis visual de pantalla en la nube</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:8px; margin-top:6px; cursor:pointer;">
-            <input type="checkbox" id="cloud_stt_consent" style="width:auto; margin:0;">
-            <span style="font-size:0.85rem;">Privacidad: Permitir reconocimiento de voz en la nube (Google STT)</span>
-          </label>
-
-          <div class="btn-bar" style="margin-top:8px;">
-            <button onclick="saveConfig()">💾 Guardar Claves / Avanzado</button>
-            <button class="secondary" onclick="saveUserMd()">💾 Guardar USER.md</button>
-          </div>
-        </div>
-      </div>
-    </details>
   </div>
+
+  <!-- Main Body: Navigation Rail + Sub-Windows Viewport -->
+  <div id="appBody">
+    <!-- Left Navigation Rail -->
+    <div id="navRail">
+      <button class="nav-btn active" id="nav-chat" onclick="switchSubwindow('chat')" title="Diálogo en vivo y chat">
+        <span class="icon">💬</span>
+        <span class="label">Chat</span>
+      </button>
+      <button class="nav-btn" id="nav-characters" onclick="switchSubwindow('characters')" title="Galería y modding de asistentes">
+        <span class="icon">🎭</span>
+        <span class="label">Galería</span>
+      </button>
+      <button class="nav-btn" id="nav-voice" onclick="switchSubwindow('voice')" title="Laboratorio de voz y DSP">
+        <span class="icon">🔊</span>
+        <span class="label">Voz/DSP</span>
+      </button>
+      <button class="nav-btn" id="nav-tools" onclick="switchSubwindow('tools')" title="Herramientas del sistema y archivos">
+        <span class="icon">🛠️</span>
+        <span class="label">Archivos</span>
+      </button>
+      <button class="nav-btn" id="nav-settings" onclick="switchSubwindow('settings')" title="Cerebro, claves y Steam">
+        <span class="icon">⚙️</span>
+        <span class="label">Ajustes</span>
+      </button>
+    </div>
+
+    <!-- Dynamic Sub-Window Viewport -->
+    <div id="subwindowViewport">
+
+      <!-- SUB-WINDOW 1: CHAT & LIVE STREAMING -->
+      <div class="subwindow-pane active" id="pane-chat">
+        <div class="glass-card" style="padding:10px 14px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="secondary" style="padding:4px 9px; font-size:0.75rem;" onclick="openDrawer('drawerSessions')">
+              📜 Historial de Sesiones
+            </button>
+            <span style="font-size:0.78rem; font-weight:700; color:#bae6fd;" id="currentSessionTitle">Conversación Actual</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="secondary" style="padding:4px 9px; font-size:0.75rem;" onclick="createNewSession()">➕ Nueva</button>
+            <button class="secondary danger" style="padding:4px 8px; font-size:0.75rem;" onclick="deleteCurrentSession()" title="Eliminar sesión actual">🗑️</button>
+          </div>
+        </div>
+
+        <div id="chatBox">
+          <div class="msg msg-kurisu">
+            <div class="msg-author">✨ Amadeus System</div>
+            <div>Sistema en línea. Puedes hablarme por micrófono (🎙️), escribir abajo o ejecutar herramientas de PC.</div>
+          </div>
+        </div>
+
+        <div class="chat-input-bar">
+          <button class="secondary" id="panelMicBtn" onclick="togglePanelMic()" title="Hablar por micrófono">🎙️ Micro</button>
+          <input id="chatInput" placeholder="Ej: 'Crea una carpeta Proyecto en Escritorio', 'Abre bloc de notas'...">
+          <button onclick="sendChatMessage()">Enviar</button>
+          <button class="secondary" onclick="interruptSpeech()" title="Callar voz inmediatamente">⏹️</button>
+        </div>
+
+        <div class="chips-bar">
+          <span class="chip" onclick="quickPrompt('¿Qué ves en mi pantalla ahora mismo?')">👁️ Analizar Pantalla</span>
+          <span class="chip" onclick="quickPrompt('Lista mis archivos recientes en Descargas')">📂 Ver Descargas</span>
+          <span class="chip" onclick="quickPrompt('Crea una carpeta Prueba_Amadeus en Escritorio')">📁 Crear Carpeta</span>
+          <span class="chip" onclick="quickPrompt('Crea un archivo bitacora.txt en Escritorio con El Psy Kongroo')">📝 Crear Archivo</span>
+          <span class="chip" onclick="quickPrompt('Abre bloc de notas')">🪟 Abrir App</span>
+          <span class="chip" onclick="quickPrompt('/deshacer')">↩️ Deshacer</span>
+        </div>
+      </div>
+
+      <!-- SUB-WINDOW 2: CHARACTER GALLERY & WORKSHOP -->
+      <div class="subwindow-pane" id="pane-characters">
+        <div class="card-title-row">
+          <div class="card-title">🎭 Galería de Asistentes y Personajes</div>
+          <button onclick="openDrawer('drawerNewChar')">➕ Crear Asistente</button>
+        </div>
+
+        <div class="glass-card" style="padding:10px 14px; display:flex; gap:10px; align-items:center;">
+          <span style="font-size:0.78rem; font-weight:700; color:var(--text-muted); white-space:nowrap;">Tu Nombre / Apodo:</span>
+          <input id="user_display_name" placeholder="Okabe" style="max-width:240px;" onchange="saveUserName()">
+          <span style="font-size:0.75rem; color:var(--text-dim);">Este nombre se usará en los saludos y la memoria del asistente.</span>
+        </div>
+
+        <div class="char-grid" id="charactersGrid">
+          <!-- Rendered dynamically via JavaScript -->
+        </div>
+      </div>
+
+      <!-- SUB-WINDOW 3: VOICE LAB & DSP AUDIO -->
+      <div class="subwindow-pane" id="pane-voice">
+        <div class="card-title">🔊 Laboratorio de Voz Neural y Filtros DSP</div>
+
+        <div class="glass-card" style="margin-top:10px;">
+          <div class="card-title-row">
+            <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">Configuración Rápida de Voz</span>
+            <button class="secondary" id="testVoiceBtn" onclick="testActiveVoice()">🔊 Probar Voz en el Avatar 3D</button>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div>
+              <label>Filtro de Audio DSP en Tiempo Real</label>
+              <select id="dsp_preset" onchange="saveQuickVoiceConfig()">
+                <option value="amadeus_screen">📺 Monitor Digital Amadeus (STEINS;GATE 0)</option>
+                <option value="clean">🎧 Estudio Limpio (Sin filtro)</option>
+                <option value="fi_spirit">✨ Eco Armónico Etéreo (Fi)</option>
+                <option value="phone">📞 Línea Telefónica</option>
+              </select>
+            </div>
+            <div>
+              <label>Motor de Voz Neural</label>
+              <select id="voice_engine" onchange="saveQuickVoiceConfig()">
+                <option value="qwen3_kurisu">🌟 Qwen3-TTS Makise Kurisu Oficial (Gratis)</option>
+                <option value="edge">⚡ Edge-TTS Instantáneo (0 Latencia + DSP)</option>
+                <option value="fish">🐟 Fish Audio Oficial (KikiVoice / Clonación)</option>
+                <option value="gemini_kurisu">✨ Gemini 2.5 TTS Leda (Requiere Gemini Key)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Live EQ CSS visualizer -->
+          <div class="eq-visualizer" id="eqVisualizer">
+            <div class="eq-bar" style="height:35%;"></div>
+            <div class="eq-bar" style="height:60%;"></div>
+            <div class="eq-bar" style="height:90%;"></div>
+            <div class="eq-bar" style="height:45%;"></div>
+            <div class="eq-bar" style="height:75%;"></div>
+            <div class="eq-bar" style="height:25%;"></div>
+            <div class="eq-bar" style="height:80%;"></div>
+            <div class="eq-bar" style="height:50%;"></div>
+            <div class="eq-bar" style="height:65%;"></div>
+            <div class="eq-bar" style="height:30%;"></div>
+          </div>
+        </div>
+
+        <!-- Direct Voice Upload (KikiVoice) & 3D Avatar Test -->
+        <div class="glass-card">
+          <div class="card-title-row">
+            <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">🎤 Clonación y Muestra de Voz (KikiVoice)</span>
+            <button class="secondary" id="testKikiBtn" onclick="testKikiVoiceOnAvatar()">🎭 Probar en 3D con Lip-Sync</button>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <label class="btn secondary" style="margin:0; cursor:pointer;">
+              📤 Subir Archivo (.mp3 / .wav)
+              <input id="kikiFileInput" type="file" accept=".mp3,.wav,.ogg,.m4a" style="display:none" onchange="uploadKikiVoiceRef(this)">
+            </label>
+            <span id="kikiMsg" style="font-size:0.76rem; color:var(--text-muted);">Sube una muestra corta para reproducirla sincronizada con la boca del avatar.</span>
+          </div>
+          <audio id="kikiPreviewAudio" controls style="width:100%; height:32px; margin-top:8px; display:none;"></audio>
+        </div>
+
+        <!-- Avatar 3D VRM & Gestures -->
+        <div class="glass-card">
+          <div class="card-title-row">
+            <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">💃 Poses y Gestos del Avatar 3D</span>
+            <label class="btn secondary" style="margin:0; cursor:pointer;">
+              📂 Cambiar .VRM
+              <input id="vrmFileInput" type="file" accept=".vrm" style="display:none" onchange="uploadVrm(this)">
+            </label>
+          </div>
+          <div class="chips-bar" style="margin-top:6px;">
+            <span class="chip" onclick="triggerAvatar('smug', 'wave', '¡Hola! Sistema activo.')">👋 Saludar</span>
+            <span class="chip" onclick="triggerAvatar('analytical', 'think', 'Analizando las variables...')">🤔 Pensar</span>
+            <span class="chip" onclick="triggerAvatar('tsundere_blush', 'cross_arms', '¡N-no es que lo haga por ti, baka!')">😤 Tsundere</span>
+            <span class="chip" onclick="triggerAvatar('happy', 'jump', '¡Comprendido! A la orden.')">✨ Celebrar</span>
+          </div>
+          <div id="vrmMsg" style="font-size:0.76rem; color:var(--text-muted); margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <!-- SUB-WINDOW 4: SYSTEM TOOLS & SAFE FILES -->
+      <div class="subwindow-pane" id="pane-tools">
+        <div class="card-title">🛠️ Herramientas de Sistema y Control de Archivos</div>
+
+        <div class="glass-card" style="margin-top:10px;">
+          <div class="card-title-row">
+            <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">🗗 Notas Independientes en Pantalla</span>
+            <button onclick="triggerNotesWindow()">Abrir Ventana de Notas</button>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.4;">
+            La ventana de notas es un cuadro flotante independiente de Aero Glass con soporte Markdown, botón de copia rápida y minimizado a barra de título.
+          </p>
+        </div>
+
+        <div class="glass-card">
+          <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">Acciones Rápidas del Entorno Windows</span>
+          <div class="chips-bar" style="margin-top:10px;">
+            <button class="secondary" onclick="quickPrompt('Crea una carpeta Trabajo en Escritorio')">📁 Crear Carpeta en Escritorio</button>
+            <button class="secondary" onclick="quickPrompt('Lista mis archivos recientes en Descargas')">📂 Ver Carpeta Descargas</button>
+            <button class="secondary" onclick="quickPrompt('Abre bloc de notas')">🪟 Abrir Notepad</button>
+            <button class="secondary danger" onclick="quickPrompt('/deshacer')">↩️ Deshacer Última Operación</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-WINDOW 5: SETTINGS, MEMORY & STEAM -->
+      <div class="subwindow-pane" id="pane-settings">
+        <div class="card-title">⚙️ Cerebro IA, Memoria de Usuario y Steamworks</div>
+
+        <!-- Steam Status Badge Card -->
+        <div class="glass-card" id="steamBadgeCard" style="margin-top:10px;">
+          <div class="card-title-row">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.3rem;">🎮</span>
+              <div>
+                <div id="steamTitle" style="font-size:0.86rem; font-weight:700; color:#bae6fd;">Steamworks: Verificando...</div>
+                <div id="steamSubtitle" style="font-size:0.72rem; color:var(--text-muted);">Soporte para logros y Steam Workshop</div>
+              </div>
+            </div>
+            <span id="steamExtra" style="font-size:0.75rem; font-weight:700; color:var(--accent-emerald);"></span>
+          </div>
+        </div>
+
+        <!-- Brain Selection & Keys -->
+        <div class="glass-card">
+          <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">Cerebro LLM y Claves API</span>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:8px;">
+            <div>
+              <label>Cerebro Activo</label>
+              <select id="active_brain">
+                <option value="auto">Auto (Gratis por defecto o usa tus claves)</option>
+                <option value="free">Gratis Directo (0 Configuración)</option>
+                <option value="gemini">Google Gemini (Recomendado)</option>
+                <option value="claude">Anthropic Claude</option>
+                <option value="codex">OpenAI GPT</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="local">Local Offline (Ollama / LM Studio)</option>
+              </select>
+
+              <label>Gemini API Key (`AIza...`)</label>
+              <input id="gemini_api_key" type="password" placeholder="Opcional: clave de Google AI Studio">
+            </div>
+
+            <div>
+              <label>Otra Clave (`sk-ant-...`, `sk-or-...`, `sk-...`)</label>
+              <input id="extra_api_key" type="password" placeholder="Opcional: se detecta por prefijo">
+
+              <label>Fish Audio API Key</label>
+              <input id="fish_audio_api_key" type="password" placeholder="Opcional: para clonación en vivo">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:16px; margin-top:12px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none;">
+              <input type="checkbox" id="cloud_vision_consent" style="width:auto; margin:0;">
+              <span>Permitir análisis de pantalla en la nube</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none;">
+              <input type="checkbox" id="cloud_stt_consent" style="width:auto; margin:0;">
+              <span>Permitir Google Speech STT en la nube</span>
+            </label>
+          </div>
+
+          <button style="margin-top:12px;" onclick="saveConfig()">💾 Guardar Ajustes de Cerebro</button>
+        </div>
+
+        <!-- USER.md Editor -->
+        <div class="glass-card">
+          <div class="card-title-row">
+            <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">Memoria Aprendida del Usuario (`USER.md`)</span>
+            <button class="secondary" onclick="saveUserMd()">💾 Guardar Memoria</button>
+          </div>
+          <textarea id="userMdEditor" rows="5" style="resize:vertical;"></textarea>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- DRAWER 1 (LEFT): HISTORIAL DE SESIONES -->
+  <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeAllDrawers()"></div>
+  <div class="drawer drawer-left" id="drawerSessions">
+    <div class="drawer-header">
+      <div class="drawer-title">📜 Historial de Sesiones</div>
+      <button class="win-btn win-btn-close" onclick="closeAllDrawers()">✕</button>
+    </div>
+    <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px;" id="sessionsListContainer">
+      <!-- Session cards rendered dynamically -->
+    </div>
+    <button style="margin-top:12px;" onclick="createNewSession()">➕ Nueva Conversación</button>
+  </div>
+
+  <!-- DRAWER 2 (RIGHT): CREADOR / INSPECTOR DE ASISTENTE -->
+  <div class="drawer drawer-right" id="drawerNewChar">
+    <div class="drawer-header">
+      <div class="drawer-title">✨ Crear Nuevo Asistente</div>
+      <button class="win-btn win-btn-close" onclick="closeAllDrawers()">✕</button>
+    </div>
+    <div style="flex:1; overflow-y:auto;">
+      <label>Nombre del Asistente</label>
+      <input id="new_char_name" placeholder="Ej: Capitán Drake, Senko...">
+
+      <label>Rol o Descripción Breve</label>
+      <input id="new_char_desc" placeholder="Ej: Pirata sabio y leal compañero">
+
+      <label>Voz Neural (Edge-TTS)</label>
+      <select id="new_char_voice">
+        <option value="es-ES-ElviraNeural">🇪🇸 Elvira (Femenina cálida)</option>
+        <option value="es-ES-AlvaroNeural">🇪🇸 Álvaro (Masculina madura)</option>
+        <option value="es-MX-DaliaNeural">🇲🇽 Dalia (Expresiva)</option>
+        <option value="es-ES-JorgeNeural">🇪🇸 Jorge (Jovial)</option>
+        <option value="es-ES-ElenaNeural">🇪🇸 Elena (Profesional)</option>
+        <option value="en-US-JennyNeural">🇺🇸 Jenny (English)</option>
+        <option value="en-US-GuyNeural">🇺🇸 Guy (English)</option>
+        <option value="ja-JP-NanamiNeural">🇯🇵 Nanami (日本語)</option>
+      </select>
+
+      <label>Filtro DSP</label>
+      <select id="new_char_dsp">
+        <option value="clean">🎧 Estudio Limpio</option>
+        <option value="amadeus_screen">📺 Monitor Digital</option>
+        <option value="fi_spirit">✨ Eco Armónico</option>
+        <option value="phone">📞 Línea Telefónica</option>
+      </select>
+
+      <label>Frase de Saludo Inicial</label>
+      <input id="new_char_greeting" placeholder="¡Saludos, camarada! A tus órdenes.">
+
+      <label>Personalidad / Prompt (`SOUL.md`)</label>
+      <textarea id="new_char_soul" rows="4" placeholder="Eres un asistente leal y perspicaz..."></textarea>
+
+      <div style="display:flex; gap:8px; margin-top:14px;">
+        <button style="flex:1;" onclick="submitNewCharacter()">✨ Crear y Activar</button>
+        <button class="secondary" onclick="closeAllDrawers()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden inputs for settings sync compatibility -->
+  <input type="hidden" id="active_profile" value="kurisu">
+  <input type="hidden" id="qwen3_speaker" value="amadeus">
+  <audio id="refAudio" style="display:none;"></audio>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer"></div>
 </div>
 
 <script>
 let baseUrl = '';
 let ws = null;
 let amadeusToken = '';
+let currentCharacters = [];
+let activeCharacterId = 'kurisu';
+let currentSessionId = '';
 
+// Intercept fetch to pass X-Amadeus-Token
 const _origFetch = window.fetch;
 window.fetch = function(url, init = {}) {
   init.headers = init.headers || {};
@@ -410,6 +1053,67 @@ window.fetch = function(url, init = {}) {
   return _origFetch(url, init);
 };
 
+// Window control functions
+function onWinMinimize() {
+  if (window.amadeusDesktop && window.amadeusDesktop.minimizePanel) {
+    window.amadeusDesktop.minimizePanel();
+  }
+}
+function onWinMaximize() {
+  if (window.amadeusDesktop && window.amadeusDesktop.maximizePanel) {
+    window.amadeusDesktop.maximizePanel();
+  }
+}
+function onWinClose() {
+  if (window.amadeusDesktop && window.amadeusDesktop.closePanel) {
+    window.amadeusDesktop.closePanel();
+  }
+}
+
+// Sub-window navigation router
+function switchSubwindow(paneId) {
+  const panes = document.querySelectorAll('.subwindow-pane');
+  panes.forEach(p => p.classList.remove('active'));
+  const targetPane = document.getElementById(`pane-${paneId}`);
+  if (targetPane) targetPane.classList.add('active');
+
+  const navBtns = document.querySelectorAll('.nav-btn');
+  navBtns.forEach(b => b.classList.remove('active'));
+  const activeBtn = document.getElementById(`nav-${paneId}`);
+  if (activeBtn) activeBtn.classList.add('active');
+}
+
+// Drawers (Off-canvas) controls
+function openDrawer(drawerId) {
+  closeAllDrawers();
+  const d = document.getElementById(drawerId);
+  const backdrop = document.getElementById('drawerBackdrop');
+  if (d) d.classList.add('active');
+  if (backdrop) backdrop.classList.add('active');
+}
+function closeAllDrawers() {
+  document.querySelectorAll('.drawer').forEach(d => d.classList.remove('active'));
+  const backdrop = document.getElementById('drawerBackdrop');
+  if (backdrop) backdrop.classList.remove('active');
+}
+
+// Toast notification engine
+function showToast(title, message = '', type = 'info') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const t = document.createElement('div');
+  t.className = 'toast';
+  const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : '✨');
+  t.innerHTML = `<span>${icon}</span><div><b>${title}</b>${message ? `<div style="font-size:0.75rem; color:#94a3b8;">${message}</div>` : ''}</div>`;
+  container.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translate3d(0, -8px, 0)';
+    setTimeout(() => t.remove(), 250);
+  }, 2600);
+}
+
+// Chat functions
 document.getElementById('chatInput').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') sendChatMessage();
 });
@@ -418,173 +1122,59 @@ function appendChat(cls, who, text) {
   const box = document.getElementById('chatBox');
   const div = document.createElement('div');
   div.className = `msg ${cls}`;
-  const b = document.createElement('b');
-  b.textContent = `${who}: `;
-  div.appendChild(b);
+  const author = document.createElement('div');
+  author.className = 'msg-author';
+  author.textContent = who;
+  div.appendChild(author);
   div.appendChild(document.createTextNode(text));
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
 }
 
-function onProfileSelect() {
-  const prof = document.getElementById('active_profile').value;
-  if (prof === 'kurisu_amadeus') {
-    document.getElementById('dsp_preset').value = 'amadeus_screen';
-    document.getElementById('voice_engine').value = 'qwen3_kurisu';
-    document.getElementById('qwen3_speaker').value = 'amadeus';
-  } else if (prof === 'kurisu_studio') {
-    document.getElementById('dsp_preset').value = 'clean';
-    document.getElementById('voice_engine').value = 'qwen3_kurisu';
-    document.getElementById('qwen3_speaker').value = 'kurisu';
-  } else if (prof === 'fi_spirit') {
-    document.getElementById('dsp_preset').value = 'fi_spirit';
-    document.getElementById('voice_engine').value = 'edge';
+function sendChatMessage() {
+  const inp = document.getElementById('chatInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  appendChat('msg-user', 'Tú', text);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'user_text', text }));
   }
 }
 
-async function initPanel() {
-  if (window.amadeusDesktop) {
-    const info = await window.amadeusDesktop.getConnectionInfo();
-    if (!info || !info.httpUrl) {
-      setTimeout(initPanel, 400);
-      return;
-    }
-    baseUrl = info.httpUrl;
-    amadeusToken = info.wsToken || '';
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
-      ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === 'reply_chunk') {
-          const provTag = msg.provider ? ` · 🔊 ${msg.provider}` : '';
-          appendChat('msg-kurisu', `Kurisu [${msg.emotion}${provTag}]`, msg.sentence);
-          const vBtn = document.getElementById('testVoiceBtn');
-          if (vBtn) vBtn.textContent = '🔊 Probar Voz en Kurisu 3D';
-        } else if (msg.type === 'reply_detail' && msg.detail) {
-          appendChat('msg-kurisu', 'Detalle', msg.detail);
-        } else if (msg.type === 'mic_transcript') {
-          appendChat('msg-user', '🎙️ Tú (Voz)', msg.text);
-        } else if (msg.type === 'listening') {
-          const micBtn = document.getElementById('panelMicBtn');
-          if (micBtn) {
-            if (msg.state === 'recording') {
-              micBtn.textContent = '🔴 Enviar Voz';
-            } else if (msg.state === 'thinking') {
-              micBtn.textContent = '⏳ Pensando...';
-            } else {
-              micBtn.textContent = '🎙️ Micro';
-            }
-          }
-        } else if (msg.type === 'confirm_request') {
-          if (confirm(`Kurisu solicita permiso:\n\n${msg.summary}\n\n¿Confirmar operación?`)) {
-            ws.send(JSON.stringify({ type: 'confirm', id: msg.id, approved: true }));
-          } else {
-            ws.send(JSON.stringify({ type: 'confirm', id: msg.id, approved: false }));
-          }
-        } else if (msg.type === 'sessions_list') {
-          const sel = document.getElementById('sessionSelect');
-          if (sel && msg.sessions) {
-            sel.innerHTML = '';
-            msg.sessions.forEach(s => {
-              const opt = document.createElement('option');
-              opt.value = s.session_id;
-              opt.textContent = `${s.title} (${s.msg_count})`;
-              sel.appendChild(opt);
-            });
-            if (msg.active_session_id) {
-              sel.value = msg.active_session_id;
-              if (!window.__initialSessionRestored) {
-                window.__initialSessionRestored = true;
-                ws.send(JSON.stringify({ type: 'switch_session', session_id: msg.active_session_id }));
-              }
-            }
-          }
-        } else if (msg.type === 'session_created') {
-          const chatBox = document.getElementById('chatBox');
-          if (chatBox) {
-            chatBox.innerHTML = '<div class="msg msg-kurisu"><b>Kurisu:</b> He iniciado una nueva sesión de conversación, Okabe. ¿De qué quieres hablar?</div>';
-          }
-          requestSessions();
-        } else if (msg.type === 'session_switched') {
-          const chatBox = document.getElementById('chatBox');
-          if (chatBox) {
-            chatBox.innerHTML = '';
-            if (!msg.messages || msg.messages.length === 0) {
-              chatBox.innerHTML = '<div class="msg msg-kurisu"><b>Kurisu:</b> Conversación vacía.</div>';
-            } else {
-              msg.messages.forEach(m => {
-                const cls = m.role === 'user' ? 'msg-user' : 'msg-kurisu';
-                const name = m.role === 'user' ? 'Tú' : 'Kurisu';
-                appendChat(cls, name, m.content);
-              });
-            }
-          }
-          requestSessions();
-        } else if (msg.type === 'character_switched') {
-          if (msg.character) {
-            activeCharacterId = msg.character.id;
-            loadCharacters();
-            loadSteamStatus();
-          }
-        } else if (msg.type === 'characters_list') {
-          if (msg.characters) {
-            renderCharactersGrid(msg.characters, msg.active_id);
-          }
-        }
-      };
-      ws.onopen = () => {
-        requestSessions();
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'get_characters' }));
-        }
-      };
-    }
+function quickPrompt(text) {
+  document.getElementById('chatInput').value = text;
+  sendChatMessage();
+}
+
+function togglePanelMic() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showToast('Conectando...', 'Esperando enlace con el núcleo de voz', 'info');
+    return;
   }
-  loadCharacters();
-  loadSteamStatus();
-  try {
-    const r = await fetch(`${baseUrl}/api/state`);
-    const d = await r.json();
-    document.getElementById('statusBadge').textContent =
-      `RAM: ${d.rss_mb} MB | Cerebro: ${d.active_provider}`;
-    document.getElementById('user_display_name').value = d.user_display_name || '';
-    document.getElementById('active_profile').value = d.active_profile || 'kurisu_amadeus';
-    document.getElementById('dsp_preset').value = d.dsp_preset || 'amadeus_screen';
-    document.getElementById('active_brain').value = d.active_brain || 'auto';
-    document.getElementById('voice_engine').value = d.voice_engine || 'qwen3_kurisu';
-    document.getElementById('qwen3_speaker').value = d.qwen3_speaker || 'amadeus';
-    document.getElementById('userMdEditor').value = d.user_md || '';
-    const visEl = document.getElementById('cloud_vision_consent');
-    if (visEl) visEl.checked = Boolean(d.cloud_vision_consent);
-    const sttEl = document.getElementById('cloud_stt_consent');
-    if (sttEl) sttEl.checked = Boolean(d.cloud_stt_consent);
-    document.getElementById('vrmMsg').textContent = d.has_vrm
-      ? '✅ Modelo avatar.vrm activo en tu escritorio.'
-      : '⚠️ Aún no hay archivo .vrm cargado.';
-    const kikiEl = document.getElementById('kikiMsg');
-    const kikiPlayer = document.getElementById('kikiPreviewAudio');
-    if (d.has_kikivoice_ref) {
-      kikiEl.textContent = '✅ Muestra de audio KikiVoice guardada y lista.';
-      kikiPlayer.src = `${baseUrl}/api/kikivoice_ref?t=${Date.now()}`;
-      kikiPlayer.style.display = 'block';
-    } else {
-      kikiEl.textContent = 'Sube un clip .mp3 o .wav de 10-15s para escucharlo o probarlo en el Avatar 3D.';
-      kikiPlayer.style.display = 'none';
-    }
-  } catch (err) {
-    console.error('Error loading state:', err);
+  ws.send(JSON.stringify({ type: 'mic_toggle' }));
+}
+
+function interruptSpeech() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'interrupt' }));
+    showToast('Voz Detenida', 'Se interrumpió la síntesis de voz', 'info');
   }
 }
 
-let currentCharacters = [];
-let activeCharacterId = 'kurisu';
-
+// Characters Gallery Rendering
 function renderCharactersGrid(characters, activeId) {
   const grid = document.getElementById('charactersGrid');
   if (!grid) return;
   grid.innerHTML = '';
   currentCharacters = characters || [];
   activeCharacterId = activeId || activeCharacterId;
+
+  const headerBadge = document.getElementById('headerActiveCharBadge');
+  const activeObj = currentCharacters.find(c => c.id === activeCharacterId);
+  if (headerBadge && activeObj) {
+    headerBadge.textContent = `🎭 ${activeObj.name}`;
+  }
 
   currentCharacters.forEach(c => {
     const card = document.createElement('div');
@@ -593,19 +1183,19 @@ function renderCharactersGrid(characters, activeId) {
 
     let tagHtml = '<span class="char-tag">Base</span>';
     if (c.category === 'mod') {
-      tagHtml = '<span class="char-tag" style="background:#fee2e2; color:#b91c1c;">Mod</span>';
+      tagHtml = '<span class="char-tag" style="background:rgba(239, 68, 68, 0.2); color:#fca5a5;">Mod</span>';
     } else if (c.category === 'custom') {
-      tagHtml = '<span class="char-tag" style="background:#fef3c7; color:#b45309;">Custom</span>';
+      tagHtml = '<span class="char-tag" style="background:rgba(245, 158, 11, 0.2); color:#fde68a;">Custom</span>';
     }
 
     const delBtn = c.category === 'custom'
-      ? `<button class="secondary" style="padding:1px 5px; font-size:0.65rem; border:none; background:transparent;" onclick="event.stopPropagation(); deleteCharacter('${c.id}', '${c.name.replace(/'/g, "\\'")}')" title="Eliminar">🗑️</button>`
+      ? `<button class="secondary danger" style="padding:1px 5px; font-size:0.65rem;" onclick="event.stopPropagation(); deleteCharacter('${c.id}', '${c.name.replace(/'/g, "\\'")}')" title="Eliminar">🗑️</button>`
       : '';
 
     card.innerHTML = `
       <div>
-        <div class="char-name">
-          <span>${c.name}</span>
+        <div class="char-card-header">
+          <span class="char-name">${c.name}</span>
           <div style="display:flex; align-items:center; gap:4px;">
             ${tagHtml}
             ${delBtn}
@@ -613,8 +1203,8 @@ function renderCharactersGrid(characters, activeId) {
         </div>
         <div class="char-desc">${c.description || ''}</div>
       </div>
-      <div class="char-meta">
-        <span>🎙️ ${c.voice_id ? c.voice_id.split('-').pop() : 'Voz'}</span>
+      <div class="char-meta-row">
+        <span>🎙️ ${c.voice_id ? c.voice_id.split('-').pop() : 'Neural'}</span>
         <span>DSP: ${c.dsp_preset || 'clean'}</span>
       </div>
     `;
@@ -651,7 +1241,7 @@ async function switchCharacter(charId) {
     const d = await r.json();
     if (d && d.character) {
       activeCharacterId = d.character.id;
-      appendChat('msg-kurisu', 'Sistema', `🎭 Asistente cambiado a: ${d.character.name}`);
+      showToast('Asistente Cambiado', `Ahora conversando con ${d.character.name}`, 'success');
       loadCharacters();
       loadSteamStatus();
     }
@@ -660,17 +1250,10 @@ async function switchCharacter(charId) {
   }
 }
 
-function toggleNewCharForm() {
-  const form = document.getElementById('newCharForm');
-  if (form) {
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
-  }
-}
-
 async function submitNewCharacter() {
   const name = document.getElementById('new_char_name').value.trim();
   if (!name) {
-    alert('Ingresa al menos el nombre del asistente.');
+    alert('Ingresa el nombre del asistente.');
     return;
   }
   const desc = document.getElementById('new_char_desc').value.trim();
@@ -698,8 +1281,8 @@ async function submitNewCharacter() {
     });
     const d = await r.json();
     if (r.ok && d.character) {
-      appendChat('msg-kurisu', 'Sistema', `✨ ¡Nuevo asistente "${d.character.name}" creado con éxito!`);
-      toggleNewCharForm();
+      showToast('Asistente Creado', `"${d.character.name}" está listo y activo`, 'success');
+      closeAllDrawers();
       document.getElementById('new_char_name').value = '';
       document.getElementById('new_char_desc').value = '';
       document.getElementById('new_char_greeting').value = '';
@@ -709,7 +1292,7 @@ async function submitNewCharacter() {
       alert(`Error al crear asistente: ${d.error || 'Respuesta inválida'}`);
     }
   } catch (err) {
-    alert(`Error de red al crear asistente: ${err.message}`);
+    alert(`Error de red: ${err.message}`);
   }
 }
 
@@ -723,7 +1306,7 @@ async function deleteCharacter(charId, name) {
     });
     const d = await r.json();
     if (d.status === 'deleted') {
-      appendChat('msg-kurisu', 'Sistema', `🗑️ Asistente "${name}" eliminado.`);
+      showToast('Eliminado', `Asistente "${name}" borrado`, 'info');
       loadCharacters();
     }
   } catch (err) {
@@ -739,104 +1322,14 @@ async function saveUserName() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_display_name: name })
   });
+  showToast('Nombre Guardado', `Te reconoceré como ${name}`, 'success');
 }
 
-async function loadSteamStatus() {
-  try {
-    const r = await fetch(`${baseUrl}/api/steam/status`);
-    const d = await r.json();
-    const badge = document.getElementById('steamBadge');
-    const title = document.getElementById('steamTitle');
-    const sub = document.getElementById('steamSubtitle');
-    const extra = document.getElementById('steamExtra');
-    if (!badge || !title) return;
-
-    if (d && d.is_available) {
-      badge.style.borderColor = 'rgba(16, 185, 129, 0.6)';
-      badge.style.background = 'rgba(236, 253, 245, 0.85)';
-      title.textContent = `Steamworks: Conectado (${d.persona_name || 'Usuario Steam'})`;
-      sub.textContent = `AppID: ${d.app_id || 480} · Cloud y Workshop activos`;
-      const achCount = (d.unlocked_achievements || []).length;
-      extra.textContent = `🏆 ${achCount} Logros`;
-    } else {
-      badge.style.borderColor = 'rgba(37, 124, 196, 0.25)';
-      title.textContent = 'Modo Standalone DRM-Free';
-      sub.textContent = 'Funcionando 100% independiente de Steam';
-      extra.textContent = '🛡️ Autónomo';
-    }
-  } catch (err) {
-    console.debug('Steam status check deferred:', err);
-  }
-}
-
-function requestSessions() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'get_sessions' }));
-  }
-}
-
-function onSessionChange(sessionId) {
-  if (!sessionId || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'switch_session', session_id: sessionId }));
-}
-
-function createNewSession() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  const title = prompt('Título para la nueva conversación (opcional):');
-  ws.send(JSON.stringify({ type: 'new_session', title: title || '' }));
-}
-
-function deleteCurrentSession() {
-  const sel = document.getElementById('sessionSelect');
-  if (!sel || !sel.value || !ws || ws.readyState !== WebSocket.OPEN) return;
-  if (confirm('¿Deseas eliminar esta conversación del historial?')) {
-    ws.send(JSON.stringify({ type: 'delete_session', session_id: sel.value }));
-    setTimeout(requestSessions, 300);
-  }
-}
-
-function togglePanelMic() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    appendChat('msg-kurisu', 'Sistema', 'Conectando al núcleo de voz...');
-    return;
-  }
-  ws.send(JSON.stringify({ type: 'mic_toggle' }));
-}
-
-function sendChatMessage() {
-  const inp = document.getElementById('chatInput');
-  const text = inp.value.trim();
-  if (!text) return;
-  inp.value = '';
-  appendChat('msg-user', 'Tú', text);
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'user_text', text }));
-  }
-}
-
-function quickPrompt(text) {
-  document.getElementById('chatInput').value = text;
-  sendChatMessage();
-}
-
-function interruptSpeech() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'interrupt' }));
-    appendChat('msg-kurisu', 'Sistema', '⏹️ Voz detenida.');
-  }
-}
-
-function triggerAvatar(emotion, gesture, phrase) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'avatar_pose', emotion, gesture, phrase }));
-    document.getElementById('vrmMsg').textContent = `✨ Pose enviada al Avatar 3D: ${emotion} (${gesture})`;
-  }
-}
-
+// Voice & Audio Functions
 async function testActiveVoice() {
   const vBtn = document.getElementById('testVoiceBtn');
-  if (vBtn) vBtn.textContent = '⏳ Generando voz...';
-  appendChat('msg-kurisu', 'Sistema', '🔊 Sintetizando prueba de voz para Makise Kurisu 3D...');
+  if (vBtn) vBtn.textContent = '⏳ Sintetizando...';
+  showToast('Prueba de Voz', 'Generando audio de prueba para el Avatar 3D', 'info');
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'test_voice', mode: 'active' }));
     return;
@@ -844,45 +1337,19 @@ async function testActiveVoice() {
   const el = document.getElementById('refAudio');
   el.src = `${baseUrl}/api/test_qwen3.wav?t=${Date.now()}`;
   el.play().finally(() => {
-    if (vBtn) vBtn.textContent = '🔊 Probar Voz en Kurisu 3D';
+    if (vBtn) vBtn.textContent = '🔊 Probar Voz en el Avatar 3D';
   });
 }
 
 function testKikiVoiceOnAvatar() {
   const kikiPlayer = document.getElementById('kikiPreviewAudio');
   if (kikiPlayer.style.display === 'none') {
-    alert('Primero sube un archivo de audio (.mp3 o .wav) con el botón "📤 Subir Audio".');
+    alert('Primero sube un archivo de audio (.mp3 o .wav).');
     return;
   }
-  appendChat('msg-kurisu', 'Sistema', '🎭 Reproduciendo tu audio subido en el Avatar 3D con sincronización labial...');
+  showToast('Audio KikiVoice', 'Reproduciendo en el avatar con sincronización labial', 'info');
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'test_voice', mode: 'kikivoice_ref' }));
-  }
-}
-
-async function uploadVrm(inputEl) {
-  const file = inputEl.files && inputEl.files[0];
-  if (!file) return;
-  const msgEl = document.getElementById('vrmMsg');
-  msgEl.textContent = `⏳ Subiendo modelo ${file.name}...`;
-  try {
-    const buf = await file.arrayBuffer();
-    const r = await fetch(`${baseUrl}/api/upload_vrm`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/octet-stream'},
-      body: buf
-    });
-    if (r.ok) {
-      const kb = Math.round(file.size / 1024);
-      msgEl.textContent = `✅ Modelo "${file.name}" (${kb} KB) cargado y actualizado en vivo.`;
-      appendChat('msg-kurisu', 'Sistema', `✅ Nuevo modelo 3D cargado: ${file.name}`);
-    } else {
-      msgEl.textContent = '❌ Error al subir archivo .vrm';
-    }
-  } catch (err) {
-    msgEl.textContent = `❌ Error de red al subir .vrm: ${err.message}`;
-  } finally {
-    inputEl.value = '';
   }
 }
 
@@ -891,7 +1358,7 @@ async function uploadKikiVoiceRef(inputEl) {
   if (!file) return;
   const kikiEl = document.getElementById('kikiMsg');
   const kikiPlayer = document.getElementById('kikiPreviewAudio');
-  kikiEl.textContent = `⏳ Subiendo audio "${file.name}"...`;
+  kikiEl.textContent = `⏳ Subiendo "${file.name}"...`;
   try {
     const buf = await file.arrayBuffer();
     const r = await fetch(`${baseUrl}/api/upload_voice_ref`, {
@@ -901,35 +1368,151 @@ async function uploadKikiVoiceRef(inputEl) {
     });
     if (r.ok) {
       const kb = Math.max(1, Math.round(file.size / 1024));
-      kikiEl.textContent = `✅ Audio "${file.name}" (${kb} KB) cargado. Puedes escucharlo abajo o probarlo en 3D:`;
+      kikiEl.textContent = `✅ "${file.name}" (${kb} KB) guardado. Listo para probar en 3D.`;
       kikiPlayer.src = `${baseUrl}/api/kikivoice_ref?t=${Date.now()}`;
       kikiPlayer.style.display = 'block';
-      appendChat('msg-kurisu', 'Sistema', `🎤 Audio de voz "${file.name}" (${kb} KB) guardado correctamente.`);
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'test_voice', mode: 'kikivoice_ref' }));
-      }
+      showToast('Audio Guardado', `Muestra "${file.name}" lista`, 'success');
     } else {
       kikiEl.textContent = '❌ Error al guardar muestra de audio';
     }
   } catch (err) {
-    kikiEl.textContent = `❌ Error al subir audio: ${err.message}`;
+    kikiEl.textContent = `❌ Error: ${err.message}`;
   } finally {
     inputEl.value = '';
   }
 }
 
+async function uploadVrm(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  const msgEl = document.getElementById('vrmMsg');
+  msgEl.textContent = `⏳ Subiendo modelo 3D "${file.name}"...`;
+  try {
+    const buf = await file.arrayBuffer();
+    const r = await fetch(`${baseUrl}/api/upload_vrm`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/octet-stream'},
+      body: buf
+    });
+    if (r.ok) {
+      const kb = Math.round(file.size / 1024);
+      msgEl.textContent = `✅ Modelo "${file.name}" (${kb} KB) actualizado en vivo.`;
+      showToast('Avatar 3D Actualizado', `Nuevo modelo "${file.name}" cargado`, 'success');
+    } else {
+      msgEl.textContent = '❌ Error al subir archivo .vrm';
+    }
+  } catch (err) {
+    msgEl.textContent = `❌ Error de red: ${err.message}`;
+  } finally {
+    inputEl.value = '';
+  }
+}
+
+function triggerAvatar(emotion, gesture, phrase) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'avatar_pose', emotion, gesture, phrase }));
+    showToast('Pose Enviada', `${emotion} (${gesture})`, 'info');
+  }
+}
+
+function triggerNotesWindow() {
+  if (window.amadeusDesktop && window.amadeusDesktop.showNotes) {
+    window.amadeusDesktop.showNotes({
+      title: 'Notas de Amadeus',
+      detail: 'Ventana de notas independiente en pantalla. Lista para apuntes o resultados de comandos.'
+    });
+  }
+}
+
+// Steam & System Status
+async function loadSteamStatus() {
+  try {
+    const r = await fetch(`${baseUrl}/api/steam/status`);
+    const d = await r.json();
+    const card = document.getElementById('steamBadgeCard');
+    const title = document.getElementById('steamTitle');
+    const sub = document.getElementById('steamSubtitle');
+    const extra = document.getElementById('steamExtra');
+    if (!card || !title) return;
+
+    if (d && d.is_available) {
+      card.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+      title.textContent = `Steamworks: Conectado (${d.persona_name || 'Usuario'})`;
+      sub.textContent = `AppID: ${d.app_id || 480} · Cloud y Workshop activos`;
+      const ach = d.unlocked_achievements || d.achievements || [];
+      extra.textContent = `🏆 ${ach.length} Logros`;
+    } else {
+      card.style.borderColor = 'var(--border-glass-subtle)';
+      title.textContent = 'Modo Standalone DRM-Free';
+      sub.textContent = 'Funcionando 100% independiente de Steam';
+      extra.textContent = '🛡️ Autónomo';
+    }
+  } catch (err) {
+    console.debug('Steam status deferred:', err);
+  }
+}
+
+// Session Management
+function requestSessions() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'get_sessions' }));
+  }
+}
+
+function renderSessionsList(sessions, activeId) {
+  const container = document.getElementById('sessionsListContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  (sessions || []).forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'glass-card';
+    item.style.padding = '8px 12px';
+    item.style.marginBottom = '6px';
+    item.style.cursor = 'pointer';
+    if (s.session_id === activeId) {
+      item.style.borderColor = 'var(--accent-cyan)';
+      item.style.background = 'rgba(30, 58, 138, 0.4)';
+    }
+    item.onclick = () => {
+      ws.send(JSON.stringify({ type: 'switch_session', session_id: s.session_id }));
+      closeAllDrawers();
+    };
+    item.innerHTML = `
+      <div style="font-size:0.82rem; font-weight:700; color:#bae6fd;">${s.title}</div>
+      <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">${s.msg_count} mensajes · ${s.updated_at ? s.updated_at.split('T')[0] : ''}</div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function createNewSession() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const title = prompt('Título para la nueva conversación (opcional):');
+  ws.send(JSON.stringify({ type: 'new_session', title: title || '' }));
+  closeAllDrawers();
+}
+
+function deleteCurrentSession() {
+  if (!currentSessionId || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (confirm('¿Deseas eliminar esta conversación del historial?')) {
+    ws.send(JSON.stringify({ type: 'delete_session', session_id: currentSessionId }));
+    setTimeout(requestSessions, 200);
+  }
+}
+
+async function saveQuickVoiceConfig() {
+  const dsp = document.getElementById('dsp_preset').value;
+  const engine = document.getElementById('voice_engine').value;
+  await fetch(`${baseUrl}/api/settings`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ dsp_preset: dsp, voice_engine: engine })
+  });
+  showToast('Voz y DSP Guardados', `${engine} con filtro ${dsp}`, 'success');
+}
+
 async function saveConfig() {
-  const fields = [
-    'user_display_name',
-    'active_profile',
-    'dsp_preset',
-    'active_brain',
-    'voice_engine',
-    'qwen3_speaker',
-    'fish_audio_api_key',
-    'gemini_api_key',
-    'extra_api_key'
-  ];
+  const fields = ['active_brain', 'gemini_api_key', 'extra_api_key', 'fish_audio_api_key'];
   const payload = {};
   for (const f of fields) {
     const el = document.getElementById(f);
@@ -939,6 +1522,7 @@ async function saveConfig() {
   if (visEl) payload.cloud_vision_consent = visEl.checked;
   const sttEl = document.getElementById('cloud_stt_consent');
   if (sttEl) payload.cloud_stt_consent = sttEl.checked;
+
   const r = await fetch(`${baseUrl}/api/settings`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -949,27 +1533,7 @@ async function saveConfig() {
     const el = document.getElementById(f);
     if (el) el.value = '';
   }
-  appendChat('msg-kurisu', 'Sistema', d.warning ? `⚠️ Guardado con aviso: ${d.warning}` : '💾 Configuración y filtro DSP aplicados en vivo.');
-  initPanel();
-}
-
-async function syncFishAgent() {
-  const keyInput = document.getElementById('fish_audio_api_key');
-  if (keyInput && keyInput.value.trim()) {
-    await saveConfig();
-  }
-  appendChat('msg-kurisu', 'Sistema', '🔄 Sincronizando con Agente de Fish Audio...');
-  try {
-    const r = await fetch(`${baseUrl}/api/sync_fish_agent`, { method: 'POST' });
-    const d = await r.json();
-    if (r.ok && d.status === 'ok') {
-      appendChat('msg-kurisu', 'Sistema', `✅ Agente sincronizado. Modelo de voz asignado: ${d.fish_model_id}`);
-    } else {
-      appendChat('msg-kurisu', 'Sistema', `⚠️ Aviso de sincronización: ${d.details?.status || d.error || 'Verifica la clave API'}`);
-    }
-  } catch (err) {
-    appendChat('msg-kurisu', 'Sistema', `❌ Error al sincronizar: ${err.message}`);
-  }
+  showToast('Ajustes Guardados', d.warning || 'Claves y cerebro aplicados', 'success');
 }
 
 async function saveUserMd() {
@@ -977,9 +1541,142 @@ async function saveUserMd() {
   await fetch(`${baseUrl}/api/user_md`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({content})
+    body: JSON.stringify({ content })
   });
-  appendChat('msg-kurisu', 'Sistema', '💾 Perfil USER.md actualizado.');
+  showToast('Memoria Guardada', 'Perfil USER.md actualizado', 'success');
+}
+
+// Master Initialization
+async function initPanel() {
+  if (window.amadeusDesktop) {
+    const info = await window.amadeusDesktop.getConnectionInfo();
+    if (!info || !info.httpUrl) {
+      setTimeout(initPanel, 400);
+      return;
+    }
+    baseUrl = info.httpUrl;
+    amadeusToken = info.wsToken || '';
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'reply_chunk') {
+          const provTag = msg.provider ? ` · 🔊 ${msg.provider}` : '';
+          const activeObj = currentCharacters.find(c => c.id === activeCharacterId);
+          const name = activeObj ? activeObj.name : 'Amadeus';
+          appendChat('msg-kurisu', `${name} [${msg.emotion}${provTag}]`, msg.sentence);
+          const vBtn = document.getElementById('testVoiceBtn');
+          if (vBtn) vBtn.textContent = '🔊 Probar Voz en el Avatar 3D';
+        } else if (msg.type === 'reply_detail' && msg.detail) {
+          appendChat('msg-kurisu', 'Detalle Técnico', msg.detail);
+        } else if (msg.type === 'mic_transcript') {
+          appendChat('msg-user', '🎙️ Tú (Voz)', msg.text);
+        } else if (msg.type === 'listening') {
+          const micBtn = document.getElementById('panelMicBtn');
+          if (micBtn) {
+            if (msg.state === 'recording') {
+              micBtn.textContent = '🔴 Enviar Voz';
+              micBtn.style.background = 'linear-gradient(180deg, #ef4444 0%, #b91c1c 100%)';
+            } else if (msg.state === 'thinking') {
+              micBtn.textContent = '⏳ Pensando...';
+              micBtn.style.background = 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)';
+            } else {
+              micBtn.textContent = '🎙️ Micro';
+              micBtn.style.background = '';
+            }
+          }
+        } else if (msg.type === 'confirm_request') {
+          if (confirm(`Solicitud de autorización:\n\n${msg.summary}\n\n¿Aprobar operación?`)) {
+            ws.send(JSON.stringify({ type: 'confirm', id: msg.id, approved: true }));
+          } else {
+            ws.send(JSON.stringify({ type: 'confirm', id: msg.id, approved: false }));
+          }
+        } else if (msg.type === 'sessions_list') {
+          if (msg.sessions) {
+            renderSessionsList(msg.sessions, msg.active_session_id);
+            if (msg.active_session_id) {
+              currentSessionId = msg.active_session_id;
+              const act = msg.sessions.find(s => s.session_id === msg.active_session_id);
+              if (act) document.getElementById('currentSessionTitle').textContent = act.title;
+            }
+          }
+        } else if (msg.type === 'session_created') {
+          const chatBox = document.getElementById('chatBox');
+          if (chatBox) {
+            chatBox.innerHTML = '<div class="msg msg-kurisu"><div class="msg-author">✨ Amadeus System</div>Nueva sesión iniciada. ¿De qué te gustaría hablar?</div>';
+          }
+          currentSessionId = msg.session_id;
+          document.getElementById('currentSessionTitle').textContent = msg.title || 'Nueva Sesión';
+          requestSessions();
+        } else if (msg.type === 'session_switched') {
+          currentSessionId = msg.session_id;
+          const chatBox = document.getElementById('chatBox');
+          if (chatBox) {
+            chatBox.innerHTML = '';
+            if (!msg.messages || msg.messages.length === 0) {
+              chatBox.innerHTML = '<div class="msg msg-kurisu"><div class="msg-author">✨ Amadeus System</div>Conversación vacía.</div>';
+            } else {
+              msg.messages.forEach(m => {
+                const cls = m.role === 'user' ? 'msg-user' : 'msg-kurisu';
+                const name = m.role === 'user' ? 'Tú' : 'Asistente';
+                appendChat(cls, name, m.content);
+              });
+            }
+          }
+          requestSessions();
+        } else if (msg.type === 'character_switched') {
+          if (msg.character) {
+            activeCharacterId = msg.character.id;
+            loadCharacters();
+            loadSteamStatus();
+          }
+        } else if (msg.type === 'characters_list') {
+          if (msg.characters) {
+            renderCharactersGrid(msg.characters, msg.active_id);
+          }
+        }
+      };
+      ws.onopen = () => {
+        requestSessions();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'get_characters' }));
+        }
+      };
+    }
+  }
+
+  try {
+    const r = await fetch(`${baseUrl}/api/state`);
+    const d = await r.json();
+    document.getElementById('coreStatusText').textContent = `${d.rss_mb} MB | ${d.active_provider}`;
+    document.getElementById('user_display_name').value = d.user_display_name || '';
+    document.getElementById('dsp_preset').value = d.dsp_preset || 'amadeus_screen';
+    document.getElementById('active_brain').value = d.active_brain || 'auto';
+    document.getElementById('voice_engine').value = d.voice_engine || 'qwen3_kurisu';
+    document.getElementById('userMdEditor').value = d.user_md || '';
+    const visEl = document.getElementById('cloud_vision_consent');
+    if (visEl) visEl.checked = Boolean(d.cloud_vision_consent);
+    const sttEl = document.getElementById('cloud_stt_consent');
+    if (sttEl) sttEl.checked = Boolean(d.cloud_stt_consent);
+    document.getElementById('vrmMsg').textContent = d.has_vrm
+      ? '✅ Modelo avatar.vrm activo en tu escritorio.'
+      : '⚠️ Aún no hay archivo .vrm cargado.';
+    const kikiEl = document.getElementById('kikiMsg');
+    const kikiPlayer = document.getElementById('kikiPreviewAudio');
+    if (d.has_kikivoice_ref) {
+      kikiEl.textContent = '✅ Muestra KikiVoice guardada y lista.';
+      kikiPlayer.src = `${baseUrl}/api/kikivoice_ref?t=${Date.now()}`;
+      kikiPlayer.style.display = 'block';
+    } else {
+      kikiEl.textContent = 'Sube un clip .mp3 o .wav para probarlo en el Avatar 3D.';
+      kikiPlayer.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Error loading state:', err);
+  }
+
+  loadCharacters();
+  loadSteamStatus();
 }
 
 initPanel();

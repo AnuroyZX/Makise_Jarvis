@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld("amadeusDesktop", {
   setNotesWindowSize: (w, h) => ipcRenderer.send("amadeus:set-notes-size", { w, h }),
   copyToClipboard: (text) => ipcRenderer.send("amadeus:copy-clipboard", text),
   setInteractiveState: (state) => ipcRenderer.send("amadeus:set-interactive-state", state),
+  minimizePanel: () => ipcRenderer.send("amadeus:minimize-panel"),
+  maximizePanel: () => ipcRenderer.send("amadeus:maximize-panel"),
+  closePanel: () => ipcRenderer.send("amadeus:close-panel"),
+  isPanelMaximized: () => ipcRenderer.invoke("amadeus:is-panel-maximized"),
   onNotesData: (callback) => {
     ipcRenderer.on("amadeus:notes-data", (_event, data) => callback(data));
   },

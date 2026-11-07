@@ -223,14 +223,19 @@ function openSettingsPanel() {
   const primary = screen.getPrimaryDisplay();
   const wa = primary.workArea;
   panelWin = new BrowserWindow({
-    width: 960,
-    height: 720,
+    width: 1040,
+    height: 740,
+    minWidth: 860,
+    minHeight: 600,
     x: Math.max(20, wa.x + 60),
     y: Math.max(20, wa.y + 40),
-    frame: true,
-    backgroundColor: "#d9eeff",
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: true,
+    resizable: true,
     autoHideMenuBar: true,
-    title: "Amadeus Kurisu — Ventana Soft Air (Aero Glass)",
+    title: "Amadeus — Panel y Asistente",
     webPreferences: {
       preload: path.join(__dirname, "..", "preload", "preload.js"),
       contextIsolation: true,
@@ -408,6 +413,22 @@ ipcMain.on("amadeus:set-interactive-state", (_ev, state) => {
       }
     }
   }
+});
+
+ipcMain.on("amadeus:minimize-panel", () => {
+  if (panelWin && !panelWin.isDestroyed()) panelWin.minimize();
+});
+ipcMain.on("amadeus:maximize-panel", () => {
+  if (panelWin && !panelWin.isDestroyed()) {
+    if (panelWin.isMaximized()) panelWin.unmaximize();
+    else panelWin.maximize();
+  }
+});
+ipcMain.on("amadeus:close-panel", () => {
+  if (panelWin && !panelWin.isDestroyed()) panelWin.hide();
+});
+ipcMain.handle("amadeus:is-panel-maximized", () => {
+  return Boolean(panelWin && !panelWin.isDestroyed() && panelWin.isMaximized());
 });
 
 app.whenReady().then(() => {
