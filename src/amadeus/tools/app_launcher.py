@@ -7,14 +7,15 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass(slots=True)
 class DiscoveredApp:
     name: str
     executable_path: str
-    source: str  # "registry" | "start_menu" | "path"
+    source: str  # "registry" | "start_menu" | "path" | "custom"
+    category: str = "general"
 
 
 class WindowsAppLauncher:
@@ -24,6 +25,47 @@ class WindowsAppLauncher:
     so Amadeus adapts to whatever apps are installed on your PC or your friend's PC.
     Enforces ECC AgentShield: never uses shell=True, only executes verified discovered binaries.
     """
+
+    CATEGORIES: Dict[str, List[str]] = {
+        "development": [
+            "code", "vscode", "visual studio", "pycharm", "intellij", "git", "terminal",
+            "powershell", "cmd", "wt", "sublime", "postman", "docker", "cursor", "rider", "eclipse"
+        ],
+        "browser": [
+            "chrome", "firefox", "edge", "msedge", "brave", "opera", "vivaldi", "tor", "safari"
+        ],
+        "communication": [
+            "discord", "slack", "teams", "telegram", "whatsapp", "zoom", "skype", "thunderbird", "outlook"
+        ],
+        "media": [
+            "spotify", "vlc", "obs", "gimp", "photoshop", "audacity", "blender", "premiere",
+            "filmora", "itunes", "music", "video", "photos", "paint"
+        ],
+        "gaming": [
+            "steam", "epic", "battle.net", "riot", "minecraft", "unity", "unreal", "gog", "ubisoft", "ea"
+        ],
+        "utility": [
+            "notepad", "calc", "calculator", "explorer", "taskmgr", "7z", "winrar", "settings", "control"
+        ],
+    }
+
+    CATEGORY_ICONS: Dict[str, str] = {
+        "development": "💻",
+        "browser": "🌐",
+        "communication": "💬",
+        "media": "🎵",
+        "gaming": "🎮",
+        "utility": "🛠️",
+        "general": "🪟",
+    }
+
+    @classmethod
+    def guess_category(cls, name: str, path: str = "") -> str:
+        text = f"{name} {path}".lower()
+        for cat, kw_list in cls.CATEGORIES.items():
+            if any(kw in text for kw in kw_list):
+                return cat
+        return "general"
 
     COMMON_ALIASES: Dict[str, List[str]] = {
         "vscode": ["code", "visual studio code"],
@@ -61,7 +103,10 @@ class WindowsAppLauncher:
                 found = shutil.which(cand)
                 if found and Path(found).exists():
                     self._catalog[alias] = DiscoveredApp(
-                        name=alias, executable_path=found, source="path"
+                        name=alias,
+                        executable_path=found,
+                        source="path",
+                        category=self.guess_category(alias, found),
                     )
                     break
 
@@ -93,6 +138,7 @@ class WindowsAppLauncher:
                                                 name=stem,
                                                 executable_path=clean_path,
                                                 source="registry",
+                                                category=self.guess_category(stem, clean_path),
                                             )
                             except OSError:
                                 continue
@@ -120,9 +166,55 @@ class WindowsAppLauncher:
                             name=lnk.stem,
                             executable_path=str(lnk),
                             source="start_menu",
+                            category=self.guess_category(lnk.stem, str(lnk)),
                         )
             except OSError:
                 continue
+
+    def add_custom_app(
+        self,
+        key: str,
+        name: str,
+        executable_path: str,
+        category: str = "general",
+    ) -> DiscoveredApp:
+        clean_key = key.strip().lower()
+        app = DiscoveredApp(
+            name=name,
+            executable_path=executable_path,
+            source="custom",
+            category=category or self.guess_category(name, executable_path),
+        )
+        self._catalog[clean_key] = app
+        return app
+
+    def get_apps_manifest(
+        self, controlled_settings: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> List[Dict[str, Any]]:
+        settings = controlled_settings or {}
+        result: List[Dict[str, Any]] = []
+        for key, app in sorted(self._catalog.items(), key=lambda x: x[1].name.lower()):
+            ctrl = settings.get(key, {})
+            enabled = ctrl.get("enabled", True)
+            custom_aliases = ctrl.get("aliases")
+            if custom_aliases is None:
+                aliases = self.COMMON_ALIASES.get(key, [key])
+            else:
+                aliases = custom_aliases
+            cat = ctrl.get("category") or app.category or self.guess_category(app.name, app.executable_path)
+            result.append({
+                "id": key,
+                "name": app.name,
+                "executable_path": app.executable_path,
+                "source": app.source,
+                "category": cat,
+                "icon": self.CATEGORY_ICONS.get(cat, "🪟"),
+                "enabled": enabled,
+                "aliases": aliases,
+                "default_args": ctrl.get("default_args", ""),
+                "require_confirm": ctrl.get("require_confirm", False),
+            })
+        return result
 
     FORBIDDEN_METACHARS = set("&|;><`$\n\r")
 
@@ -152,26 +244,48 @@ class WindowsAppLauncher:
 
         return None
 
-    def launch(self, app_query: str, dry_run: bool = False) -> str:
+    def launch(
+        self,
+        app_query: str,
+        dry_run: bool = False,
+        extra_args: str = "",
+        controlled_settings: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
         Safely launch a discovered application without shell=True (ECC AgentShield).
+        Respects custom arguments and enabled/disabled permissions.
         """
         app = self.find_app(app_query)
         if app is None:
             return f"No encontré la aplicación '{app_query}' instalada en este PC."
 
+        ctrl = controlled_settings or {}
+        if ctrl and not ctrl.get("enabled", True):
+            return f"El control de la aplicación '{app.name}' está desactivado en tus ajustes de Amadeus."
+
+        default_args = ctrl.get("default_args", "").strip() if ctrl else ""
+        combined_args = f"{default_args} {extra_args}".strip()
+
         if dry_run:
-            return f"[Dry-Run] Lanzaría '{app.name}' desde '{app.executable_path}' ({app.source})."
+            args_hint = f" con parámetros '{combined_args}'" if combined_args else ""
+            return f"[Dry-Run] Lanzaría '{app.name}' desde '{app.executable_path}' ({app.source}){args_hint}."
 
         target = Path(app.executable_path)
         if not target.exists():
             return f"El ejecutable para '{app.name}' ya no existe en '{app.executable_path}'."
 
-        if target.suffix.lower() == ".lnk" and os.name == "nt":
+        if target.suffix.lower() == ".lnk" and os.name == "nt" and not combined_args:
             os.startfile(str(target))  # type: ignore[attr-defined]
         else:
+            cmd_args = [str(target)]
+            if combined_args:
+                import shlex
+                try:
+                    cmd_args.extend(shlex.split(combined_args, posix=False))
+                except Exception:
+                    cmd_args.extend(combined_args.split())
             subprocess.Popen(
-                [str(target)],
+                cmd_args,
                 shell=False,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,

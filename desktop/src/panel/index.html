@@ -574,6 +574,176 @@
       transition: height 0.15s ease;
     }
 
+    /* Sub-Window: App Control Grid & Matrix Styles */
+    .apps-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .apps-search-wrap {
+      flex: 1;
+      min-width: 220px;
+      position: relative;
+    }
+    .apps-search-wrap input {
+      width: 100%;
+      padding-left: 32px;
+      height: 36px;
+    }
+    .apps-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 12px;
+      max-height: calc(100vh - 230px);
+      overflow-y: auto;
+      padding-right: 4px;
+      padding-bottom: 24px;
+    }
+
+    .app-card {
+      background: var(--bg-glass-card);
+      border: 1px solid var(--border-glass-subtle);
+      border-radius: var(--radius-md);
+      padding: 13px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.22s var(--ease-spring);
+      position: relative;
+      user-select: none;
+      min-height: 125px;
+    }
+    .app-card:hover {
+      background: var(--bg-glass-card-hover);
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(2, 132, 199, 0.2);
+    }
+    .app-card.disabled {
+      opacity: 0.52;
+      filter: grayscale(35%);
+    }
+    .app-card.selected {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 1px var(--accent-cyan), 0 8px 24px rgba(2, 132, 199, 0.3);
+    }
+
+    .app-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .app-icon-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-glass-subtle);
+    }
+    .app-card-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #bae6fd;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .app-card-sub {
+      font-size: 0.71rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 10px;
+    }
+    .app-card-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-glass-subtle);
+      padding-top: 8px;
+      margin-top: auto;
+    }
+    .app-status-pill {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: var(--radius-full);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .app-status-pill.enabled {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .app-status-pill.disabled {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    /* Switch Component */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 34px;
+      height: 18px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.18);
+      transition: .22s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 20px;
+      border: 1px solid var(--border-glass-subtle);
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 12px;
+      width: 12px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .22s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: var(--accent-emerald);
+      border-color: rgba(16, 185, 129, 0.6);
+    }
+    input:checked + .slider:before {
+      transform: translateX(16px);
+    }
+
     /* Drawers: 60fps Off-Canvas Lateral Slide Panels */
     .drawer-backdrop {
       position: absolute;
@@ -712,6 +882,10 @@
       <button class="nav-btn" id="nav-voice" onclick="switchSubwindow('voice')" title="Laboratorio de voz y DSP">
         <span class="icon">🔊</span>
         <span class="label">Voz/DSP</span>
+      </button>
+      <button class="nav-btn" id="nav-apps" onclick="switchSubwindow('apps')" title="Control de aplicaciones y accesos">
+        <span class="icon">🪟</span>
+        <span class="label">Apps</span>
       </button>
       <button class="nav-btn" id="nav-tools" onclick="switchSubwindow('tools')" title="Herramientas del sistema y archivos">
         <span class="icon">🛠️</span>
@@ -861,6 +1035,47 @@
             <span class="chip" onclick="triggerAvatar('happy', 'jump', '¡Comprendido! A la orden.')">✨ Celebrar</span>
           </div>
           <div id="vrmMsg" style="font-size:0.76rem; color:var(--text-muted); margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <!-- SUB-WINDOW: APP CONTROL GRID & MATRIX -->
+      <div class="subwindow-pane" id="pane-apps">
+        <div class="card-title-row">
+          <div>
+            <div class="card-title">🪟 Control y Automatización de Aplicaciones</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+              Selecciona qué aplicaciones puede abrir y controlar Amadeus. Haz clic en cualquier tarjeta para abrir su panel de configuración.
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-badge" id="appsSummaryBadge">
+              <span id="appsSummaryText">Cargando aplicaciones...</span>
+            </div>
+            <button class="secondary" onclick="rescanApps()" title="Volver a escanear programas en Windows">🔄 Re-escanear</button>
+            <button onclick="openDrawer('drawerAddApp')">➕ Añadir App</button>
+          </div>
+        </div>
+
+        <div class="apps-toolbar">
+          <div class="apps-search-wrap">
+            <span class="apps-search-icon">🔍</span>
+            <input id="appsSearchInput" placeholder="Buscar app por nombre o comando..." oninput="onAppsSearch()">
+          </div>
+          <div class="chips-bar" style="margin-top:0;">
+            <span class="chip" id="chip-filter-all" onclick="filterAppsByCategory('all', this)" style="background:rgba(56, 189, 248, 0.25); color:#fff; border-color:var(--accent-cyan);">Todas</span>
+            <span class="chip" onclick="filterAppsByCategory('enabled', this)">🟢 Habilitadas</span>
+            <span class="chip" onclick="filterAppsByCategory('disabled', this)">⚪ Bloqueadas</span>
+            <span class="chip" onclick="filterAppsByCategory('browser', this)">🌐 Navegadores</span>
+            <span class="chip" onclick="filterAppsByCategory('development', this)">💻 Desarrollo</span>
+            <span class="chip" onclick="filterAppsByCategory('communication', this)">💬 Comunicación</span>
+            <span class="chip" onclick="filterAppsByCategory('media', this)">🎵 Multimedia</span>
+            <span class="chip" onclick="filterAppsByCategory('gaming', this)">🎮 Juegos</span>
+            <span class="chip" onclick="filterAppsByCategory('utility', this)">🛠️ Utilidades</span>
+          </div>
+        </div>
+
+        <div class="app-grid" id="appsGrid">
+          <!-- Rendered dynamically via JavaScript -->
         </div>
       </div>
 
@@ -1022,6 +1237,135 @@
     </div>
   </div>
 
+  <!-- DRAWER 3 (RIGHT): CONFIGURACIÓN DE APLICACIÓN (PANEL PEQUEÑO) -->
+  <div class="drawer drawer-right" id="drawerAppConfig">
+    <div class="drawer-header">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="app-icon-badge" id="cfgAppIcon" style="font-size:1.35rem;">🪟</div>
+        <div>
+          <div class="drawer-title" id="cfgAppName">Configurar App</div>
+          <div style="font-size:0.7rem; color:var(--text-muted);" id="cfgAppCategory">Categoría</div>
+        </div>
+      </div>
+      <button class="win-btn win-btn-close" onclick="closeAllDrawers()">✕</button>
+    </div>
+
+    <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-right:2px;">
+      <!-- Toggle Control Master -->
+      <div class="glass-card" style="padding:10px 12px; display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div style="font-size:0.82rem; font-weight:700; color:#bae6fd;">Permitir Control</div>
+          <div style="font-size:0.7rem; color:var(--text-muted);">Amadeus puede abrir o interactuar con esta app</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="cfgAppEnabled">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Voice / Chat Trigger Aliases -->
+      <div class="glass-card" style="padding:10px 12px;">
+        <label style="font-size:0.78rem; font-weight:700; color:#bae6fd; margin-bottom:4px;">Comandos y Alias de Invocación</label>
+        <input id="cfgAppAliases" placeholder="Ej: bloc de notas, editor, notepad">
+        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px;">
+          Separados por coma. Nombres con los que puedes pedirle al asistente que la abra.
+        </div>
+      </div>
+
+      <!-- Startup Parameters -->
+      <div class="glass-card" style="padding:10px 12px;">
+        <label style="font-size:0.78rem; font-weight:700; color:#bae6fd; margin-bottom:4px;">Parámetros de Inicio (Argumentos)</label>
+        <input id="cfgAppArgs" placeholder="Ej: --new-window, -p, --incognito">
+        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px;">
+          Se pasarán automáticamente al binario al iniciar.
+        </div>
+      </div>
+
+      <!-- Security: Confirm Before Launch -->
+      <div class="glass-card" style="padding:10px 12px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; margin:0;">
+          <input type="checkbox" id="cfgAppConfirm" style="width:auto; margin:0;">
+          <span style="font-size:0.78rem; font-weight:600; color:#f8fafc;">Pedir confirmación previa en pantalla</span>
+        </label>
+        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; margin-left:24px;">
+          Muestra una tarjeta de autorización en el avatar antes de ejecutar.
+        </div>
+      </div>
+
+      <!-- Category Selector -->
+      <div class="glass-card" style="padding:10px 12px;">
+        <label style="font-size:0.78rem; font-weight:700; color:#bae6fd; margin-bottom:4px;">Categoría</label>
+        <select id="cfgAppCategorySelect">
+          <option value="general">🪟 General / Sistema</option>
+          <option value="browser">🌐 Navegador Web</option>
+          <option value="development">💻 Desarrollo y Programación</option>
+          <option value="communication">💬 Comunicación y Chat</option>
+          <option value="media">🎵 Multimedia y Edición</option>
+          <option value="gaming">🎮 Videojuegos</option>
+          <option value="utility">🛠️ Utilidad / Herramienta</option>
+        </select>
+      </div>
+
+      <!-- Path Info -->
+      <div class="glass-card" style="padding:10px 12px;">
+        <div style="font-size:0.72rem; font-weight:700; color:var(--text-muted); margin-bottom:4px;">Ruta Ejecutable en Disco</div>
+        <div id="cfgAppPath" style="font-size:0.7rem; color:#93c5fd; word-break:break-all; font-family:monospace; user-select:text;"></div>
+      </div>
+    </div>
+
+    <!-- Actions Footer -->
+    <div style="display:flex; gap:8px; margin-top:14px; border-top:1px solid var(--border-glass-subtle); padding-top:12px;">
+      <button class="secondary" style="flex:1;" onclick="testLaunchAppFromDrawer()">▶ Probar Inicio</button>
+      <button style="flex:1;" onclick="saveAppConfigFromDrawer()">💾 Guardar</button>
+    </div>
+  </div>
+
+  <!-- DRAWER 4 (RIGHT): AÑADIR APLICACIÓN PERSONALIZADA -->
+  <div class="drawer drawer-right" id="drawerAddApp">
+    <div class="drawer-header">
+      <div class="drawer-title">➕ Añadir App Personalizada</div>
+      <button class="win-btn win-btn-close" onclick="closeAllDrawers()">✕</button>
+    </div>
+    <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px;">
+      <div>
+        <label>Nombre de la Aplicación</label>
+        <input id="add_app_name" placeholder="Ej: Sublime Text, Mi Herramienta...">
+      </div>
+      <div>
+        <label>Ruta Completa del Ejecutable (.exe, .lnk)</label>
+        <input id="add_app_path" placeholder="C:\Archivos de programa\App\app.exe">
+      </div>
+      <div>
+        <label>Comandos y Alias de Invocación</label>
+        <input id="add_app_aliases" placeholder="sublime, editor rapido">
+      </div>
+      <div>
+        <label>Parámetros de Inicio Opcionales</label>
+        <input id="add_app_args" placeholder="--clean">
+      </div>
+      <div>
+        <label>Categoría</label>
+        <select id="add_app_category">
+          <option value="general">🪟 General / Sistema</option>
+          <option value="browser">🌐 Navegador Web</option>
+          <option value="development">💻 Desarrollo y Programación</option>
+          <option value="communication">💬 Comunicación y Chat</option>
+          <option value="media">🎵 Multimedia y Edición</option>
+          <option value="gaming">🎮 Videojuegos</option>
+          <option value="utility">🛠️ Utilidad / Herramienta</option>
+        </select>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none;">
+        <input type="checkbox" id="add_app_confirm" style="width:auto; margin:0;">
+        <span style="font-size:0.78rem; font-weight:600; color:#f8fafc;">Pedir confirmación previa en pantalla</span>
+      </label>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <button style="flex:1;" onclick="submitNewCustomApp()">➕ Registrar App</button>
+      <button class="secondary" onclick="closeAllDrawers()">Cancelar</button>
+    </div>
+  </div>
+
   <!-- Hidden inputs for settings sync compatibility -->
   <input type="hidden" id="active_profile" value="kurisu">
   <input type="hidden" id="qwen3_speaker" value="amadeus">
@@ -1081,6 +1425,10 @@ function switchSubwindow(paneId) {
   navBtns.forEach(b => b.classList.remove('active'));
   const activeBtn = document.getElementById(`nav-${paneId}`);
   if (activeBtn) activeBtn.classList.add('active');
+
+  if (paneId === 'apps' && (!currentAppsList || currentAppsList.length === 0)) {
+    loadApps();
+  }
 }
 
 // Drawers (Off-canvas) controls
@@ -1677,6 +2025,301 @@ async function initPanel() {
 
   loadCharacters();
   loadSteamStatus();
+  loadApps();
+}
+
+// ==========================================
+// APPLICATION CONTROL GRID ENGINE
+// ==========================================
+let currentAppsList = [];
+let selectedAppId = null;
+let currentAppCategoryFilter = 'all';
+let currentAppSearchQuery = '';
+
+async function loadApps() {
+  const badge = document.getElementById('appsSummaryText');
+  if (badge) badge.textContent = 'Escaneando apps...';
+  try {
+    const res = await fetch(`${baseUrl}/api/apps`);
+    const data = await res.json();
+    if (res.ok && data.apps) {
+      currentAppsList = data.apps;
+      if (badge) {
+        badge.textContent = `${data.enabled_count} de ${data.total} Habilitadas`;
+      }
+      renderAppsGrid();
+    }
+  } catch (err) {
+    console.error('Error loading apps:', err);
+    if (badge) badge.textContent = 'Error al cargar';
+  }
+}
+
+function renderAppsGrid() {
+  const grid = document.getElementById('appsGrid');
+  if (!grid) return;
+
+  const query = currentAppSearchQuery.toLowerCase().trim();
+  const filter = currentAppCategoryFilter;
+
+  const filtered = currentAppsList.filter(app => {
+    // 1. Category / Status filter
+    if (filter === 'enabled' && !app.enabled) return false;
+    if (filter === 'disabled' && app.enabled) return false;
+    if (filter !== 'all' && filter !== 'enabled' && filter !== 'disabled') {
+      if ((app.category || 'general').toLowerCase() !== filter.toLowerCase()) return false;
+    }
+
+    // 2. Text Search Query
+    if (query) {
+      const nameMatch = (app.name || '').toLowerCase().includes(query);
+      const idMatch = (app.id || '').toLowerCase().includes(query);
+      const aliasMatch = (app.aliases || []).some(a => a.toLowerCase().includes(query));
+      if (!nameMatch && !idMatch && !aliasMatch) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 40px 20px; text-align: center; color: var(--text-muted);">
+        <div style="font-size: 2rem; margin-bottom: 8px;">🔍</div>
+        <div style="font-size: 0.9rem; font-weight: 700; color: #bae6fd;">No se encontraron aplicaciones</div>
+        <div style="font-size: 0.78rem; margin-top: 4px;">Intenta cambiar el filtro o pulsa "Re-escanear" para detectar programas nuevos.</div>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = '';
+  filtered.forEach(app => {
+    const card = document.createElement('div');
+    card.className = `app-card ${app.enabled ? '' : 'disabled'} ${app.id === selectedAppId ? 'selected' : ''}`;
+    card.onclick = () => openAppConfigDrawer(app.id);
+
+    const sourceLabel = app.source === 'start_menu' ? 'Inicio' : (app.source === 'registry' ? 'Registro' : (app.source === 'custom' ? 'Manual' : 'Sistema'));
+    const categoryName = app.category || 'general';
+
+    card.innerHTML = `
+      <div class="app-card-top">
+        <div class="app-icon-badge">${app.icon || '🪟'}</div>
+        <label class="switch" onclick="event.stopPropagation();" title="${app.enabled ? 'Deshabilitar control' : 'Habilitar control'}">
+          <input type="checkbox" ${app.enabled ? 'checked' : ''} onchange="toggleAppDirect('${app.id}', this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div>
+        <div class="app-card-name" title="${app.name}">${app.name}</div>
+        <div class="app-card-sub" title="${app.executable_path}">${sourceLabel} · ${categoryName}</div>
+      </div>
+      <div class="app-card-bottom">
+        <span class="app-status-pill ${app.enabled ? 'enabled' : 'disabled'}">
+          ${app.enabled ? '🟢 Activo' : '⚪ Bloqueado'}
+        </span>
+        <button class="secondary" style="padding: 2px 7px; font-size: 0.7rem;" onclick="event.stopPropagation(); openAppConfigDrawer('${app.id}')">⚙️ Ajustar</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function openAppConfigDrawer(appId) {
+  const app = currentAppsList.find(a => a.id === appId);
+  if (!app) return;
+  selectedAppId = appId;
+
+  document.getElementById('cfgAppIcon').textContent = app.icon || '🪟';
+  document.getElementById('cfgAppName').textContent = app.name || appId;
+  document.getElementById('cfgAppCategory').textContent = `${app.category || 'general'} · ${app.source}`;
+  document.getElementById('cfgAppEnabled').checked = Boolean(app.enabled);
+  document.getElementById('cfgAppAliases').value = (app.aliases || []).join(', ');
+  document.getElementById('cfgAppArgs').value = app.default_args || '';
+  document.getElementById('cfgAppConfirm').checked = Boolean(app.require_confirm);
+  document.getElementById('cfgAppCategorySelect').value = app.category || 'general';
+  document.getElementById('cfgAppPath').textContent = app.executable_path || 'Ruta no disponible';
+
+  openDrawer('drawerAppConfig');
+  renderAppsGrid();
+}
+
+async function saveAppConfigFromDrawer() {
+  if (!selectedAppId) return;
+  const enabled = document.getElementById('cfgAppEnabled').checked;
+  const rawAliases = document.getElementById('cfgAppAliases').value;
+  const aliases = rawAliases.split(',').map(s => s.trim()).filter(Boolean);
+  const default_args = document.getElementById('cfgAppArgs').value.trim();
+  const require_confirm = document.getElementById('cfgAppConfirm').checked;
+  const category = document.getElementById('cfgAppCategorySelect').value;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/apps/configure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: selectedAppId,
+        enabled,
+        aliases,
+        default_args,
+        require_confirm,
+        category,
+      }),
+    });
+    const d = await res.json();
+    if (res.ok) {
+      showToast('Configuración Guardada', `Ajustes para "${selectedAppId}" actualizados`, 'success');
+      const idx = currentAppsList.findIndex(a => a.id === selectedAppId);
+      if (idx !== -1) {
+        currentAppsList[idx].enabled = enabled;
+        currentAppsList[idx].aliases = aliases;
+        currentAppsList[idx].default_args = default_args;
+        currentAppsList[idx].require_confirm = require_confirm;
+        currentAppsList[idx].category = category;
+      }
+      closeAllDrawers();
+      renderAppsGrid();
+      updateAppsSummary();
+    } else {
+      alert(`Error al guardar: ${d.error || 'Respuesta inválida'}`);
+    }
+  } catch (err) {
+    alert(`Error de red: ${err.message}`);
+  }
+}
+
+async function toggleAppDirect(appId, enabled) {
+  try {
+    const res = await fetch(`${baseUrl}/api/apps/configure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: appId, enabled }),
+    });
+    if (res.ok) {
+      const item = currentAppsList.find(a => a.id === appId);
+      if (item) item.enabled = enabled;
+      showToast(enabled ? 'App Habilitada' : 'App Deshabilitada', item ? item.name : appId, enabled ? 'success' : 'info');
+      renderAppsGrid();
+      updateAppsSummary();
+    }
+  } catch (err) {
+    console.error('Error toggling app:', err);
+  }
+}
+
+function updateAppsSummary() {
+  const badge = document.getElementById('appsSummaryText');
+  if (badge && currentAppsList) {
+    const enabledCount = currentAppsList.filter(a => a.enabled).length;
+    badge.textContent = `${enabledCount} de ${currentAppsList.length} Habilitadas`;
+  }
+}
+
+async function testLaunchAppFromDrawer() {
+  if (!selectedAppId) return;
+  const app = currentAppsList.find(a => a.id === selectedAppId);
+  const name = app ? app.name : selectedAppId;
+  showToast('Iniciando...', `Ejecutando ${name}`, 'info');
+  try {
+    const res = await fetch(`${baseUrl}/api/apps/launch_test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: selectedAppId,
+        extra_args: document.getElementById('cfgAppArgs').value.trim(),
+        dry_run: false,
+      }),
+    });
+    const d = await res.json();
+    if (res.ok) {
+      showToast('Resultado de Inicio', d.message, 'success');
+    } else {
+      alert(`Error: ${d.error || 'No se pudo iniciar'}`);
+    }
+  } catch (err) {
+    alert(`Error de red: ${err.message}`);
+  }
+}
+
+async function rescanApps() {
+  const badge = document.getElementById('appsSummaryText');
+  if (badge) badge.textContent = 'Re-escaneando...';
+  showToast('Escaneando PC', 'Buscando aplicaciones en Registro y Menú Inicio...', 'info');
+  try {
+    const res = await fetch(`${baseUrl}/api/apps/rescan`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok && data.apps) {
+      currentAppsList = data.apps;
+      showToast('Escaneo Completo', `${data.total} programas detectados`, 'success');
+      updateAppsSummary();
+      renderAppsGrid();
+    }
+  } catch (err) {
+    showToast('Error de Escaneo', err.message, 'error');
+  }
+}
+
+async function submitNewCustomApp() {
+  const name = document.getElementById('add_app_name').value.trim();
+  const executable_path = document.getElementById('add_app_path').value.trim();
+  const rawAliases = document.getElementById('add_app_aliases').value;
+  const aliases = rawAliases.split(',').map(s => s.trim()).filter(Boolean);
+  const default_args = document.getElementById('add_app_args').value.trim();
+  const category = document.getElementById('add_app_category').value;
+  const require_confirm = document.getElementById('add_app_confirm').checked;
+
+  if (!name || !executable_path) {
+    alert('Por favor introduce el nombre y la ruta del ejecutable.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${baseUrl}/api/apps/add_custom`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        executable_path,
+        aliases,
+        default_args,
+        category,
+        require_confirm,
+      }),
+    });
+    const d = await res.json();
+    if (res.ok) {
+      showToast('App Añadida', `"${name}" registrada correctamente`, 'success');
+      closeAllDrawers();
+      document.getElementById('add_app_name').value = '';
+      document.getElementById('add_app_path').value = '';
+      document.getElementById('add_app_aliases').value = '';
+      document.getElementById('add_app_args').value = '';
+      await loadApps();
+    } else {
+      alert(`Error al registrar app: ${d.error || 'Verifica que la ruta exista'}`);
+    }
+  } catch (err) {
+    alert(`Error de red: ${err.message}`);
+  }
+}
+
+function filterAppsByCategory(category, el) {
+  currentAppCategoryFilter = category;
+  const chips = document.querySelectorAll('.apps-toolbar .chip');
+  chips.forEach(c => {
+    c.style.background = '';
+    c.style.color = '';
+    c.style.borderColor = '';
+  });
+  if (el) {
+    el.style.background = 'rgba(56, 189, 248, 0.25)';
+    el.style.color = '#fff';
+    el.style.borderColor = 'var(--accent-cyan)';
+  }
+  renderAppsGrid();
+}
+
+function onAppsSearch() {
+  currentAppSearchQuery = document.getElementById('appsSearchInput').value || '';
+  renderAppsGrid();
 }
 
 initPanel();

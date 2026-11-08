@@ -138,6 +138,7 @@ class AmadeusSettings:
         default_factory=lambda: ["keepass", "1password", "bitwarden", "authy", "banco", "bank"]
     )
     habit_suggestions_enabled: bool = True
+    controlled_apps: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     # Security & Privacy Consents (S1, S6)
     auth_token: str = field(default_factory=lambda: secrets.token_urlsafe(24))

@@ -805,6 +805,19 @@ class EphemeralOnboardingServer:
                 json.dumps({"active_id": active_id, "characters": chars}, ensure_ascii=False).encode("utf-8"),
             )
 
+        if method == "GET" and path == "/api/apps":
+            settings_controlled = getattr(self.system.settings, "controlled_apps", {}) or {}
+            apps = self.system.toolkit.app_launcher.get_apps_manifest(settings_controlled)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({
+                    "total": len(apps),
+                    "enabled_count": sum(1 for a in apps if a.get("enabled", True)),
+                    "apps": apps,
+                }, ensure_ascii=False).encode("utf-8"),
+            )
+
         if method == "GET" and path == "/api/avatar.vrm":
             if not self.vrm_file_path.exists():
                 return "404 Not Found", "application/json", b'{"error":"no_vrm"}'
@@ -883,6 +896,100 @@ class EphemeralOnboardingServer:
                 "200 OK",
                 "application/json",
                 json.dumps({"status": "deleted" if deleted else "not_found"}).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/apps/configure":
+            app_id = str(data.get("id") or "").strip().lower()
+            if not app_id:
+                return "400 Bad Request", "application/json", b'{"error":"missing_app_id"}'
+            if not hasattr(self.system.settings, "controlled_apps") or self.system.settings.controlled_apps is None:
+                self.system.settings.controlled_apps = {}
+            curr = dict(self.system.settings.controlled_apps.get(app_id, {}))
+            if "enabled" in data:
+                curr["enabled"] = bool(data.get("enabled"))
+            if "aliases" in data:
+                raw_aliases = data.get("aliases")
+                if isinstance(raw_aliases, str):
+                    curr["aliases"] = [a.strip() for a in raw_aliases.split(",") if a.strip()]
+                elif isinstance(raw_aliases, list):
+                    curr["aliases"] = [str(a).strip() for a in raw_aliases if str(a).strip()]
+            if "default_args" in data:
+                curr["default_args"] = str(data.get("default_args", "")).strip()
+            if "require_confirm" in data:
+                curr["require_confirm"] = bool(data.get("require_confirm"))
+            if "category" in data:
+                curr["category"] = str(data.get("category", "")).strip()
+            self.system.settings.controlled_apps[app_id] = curr
+            self.system.settings.save(self.system.data_dir)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "saved", "app_id": app_id, "config": curr}, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/apps/rescan":
+            count = self.system.toolkit.app_launcher.refresh_catalog()
+            settings_controlled = getattr(self.system.settings, "controlled_apps", {}) or {}
+            apps = self.system.toolkit.app_launcher.get_apps_manifest(settings_controlled)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({
+                    "status": "rescanned",
+                    "total": count,
+                    "enabled_count": sum(1 for a in apps if a.get("enabled", True)),
+                    "apps": apps,
+                }, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/apps/launch_test":
+            app_id = str(data.get("id") or "").strip().lower()
+            if not app_id:
+                return "400 Bad Request", "application/json", b'{"error":"missing_app_id"}'
+            ctrl = getattr(self.system.settings, "controlled_apps", {}).get(app_id, {})
+            msg = self.system.toolkit.app_launcher.launch(
+                app_id,
+                dry_run=bool(data.get("dry_run", False)),
+                extra_args=str(data.get("extra_args") or ""),
+                controlled_settings=ctrl,
+            )
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "launched", "message": msg}, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/apps/add_custom":
+            name = str(data.get("name") or "").strip()
+            exe_path = str(data.get("executable_path") or "").strip()
+            if not name or not exe_path:
+                return "400 Bad Request", "application/json", b'{"error":"missing_name_or_path"}'
+            if not Path(exe_path).exists():
+                return "400 Bad Request", "application/json", b'{"error":"executable_not_found"}'
+            import re
+            clean_id = re.sub(r"[^a-zA-Z0-9_]", "_", name.lower()).strip("_") or "custom_app"
+            cat = str(data.get("category") or "general")
+            self.system.toolkit.app_launcher.add_custom_app(clean_id, name, exe_path, category=cat)
+            if not hasattr(self.system.settings, "controlled_apps") or self.system.settings.controlled_apps is None:
+                self.system.settings.controlled_apps = {}
+            raw_aliases = data.get("aliases") or [name.lower()]
+            if isinstance(raw_aliases, str):
+                aliases = [a.strip() for a in raw_aliases.split(",") if a.strip()]
+            else:
+                aliases = [str(a).strip() for a in raw_aliases if str(a).strip()]
+            self.system.settings.controlled_apps[clean_id] = {
+                "enabled": True,
+                "aliases": aliases,
+                "default_args": str(data.get("default_args") or "").strip(),
+                "require_confirm": bool(data.get("require_confirm", False)),
+                "category": cat,
+                "executable_path": exe_path,
+            }
+            self.system.settings.save(self.system.data_dir)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "created", "app_id": clean_id}, ensure_ascii=False).encode("utf-8"),
             )
 
         if method == "POST" and path == "/api/chat":
