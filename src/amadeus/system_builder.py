@@ -9,6 +9,7 @@ from amadeus.brain.router import MultiBrainRouter
 from amadeus.channels.pc_and_whatsapp import PCInteractionGateway, WhatsAppBridgePlugin
 from amadeus.channels.telegram_gateway import TelegramGateway
 from amadeus.config import AmadeusSettings, get_default_data_dir
+from amadeus.house.asset_library import AssetLibraryManager
 from amadeus.house.environment_scanner import EnvironmentScanner, HostProfile
 from amadeus.house.logging_setup import setup_logging
 from amadeus.house.onboarding_ui import EphemeralOnboardingServer
@@ -160,6 +161,9 @@ class AmadeusSystem:
             core=self.core,
             http_client=self._shared_http,
         )
+
+        # Free Asset Library & Custom Gesture Manager
+        self.library = AssetLibraryManager(data_dir=self.data_dir)
 
         # Ephemeral Web UI for Onboarding & Control
         self.web_ui = EphemeralOnboardingServer(system=self)

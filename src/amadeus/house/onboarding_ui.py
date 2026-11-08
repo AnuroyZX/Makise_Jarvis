@@ -1091,6 +1091,167 @@ class EphemeralOnboardingServer:
                 json.dumps({"status": "created", "app_id": clean_id}, ensure_ascii=False).encode("utf-8"),
             )
 
+        # ==========================================
+        # FREE ASSET LIBRARY & MOTION STUDIO ROUTES
+        # ==========================================
+        if method == "GET" and path == "/api/library/assets":
+            lib = getattr(self.system, "library", None)
+            if lib is None:
+                from amadeus.house.asset_library import AssetLibraryManager
+                lib = AssetLibraryManager(data_dir=self.system.data_dir)
+                self.system.library = lib
+
+            q_type = query_params.get("type", "all") if query_params else "all"
+            q_cat = query_params.get("category", "all") if query_params else "all"
+            q_query = query_params.get("query", "") if query_params else ""
+            assets = lib.search_assets(asset_type=q_type, category=q_cat, query=q_query)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"total": len(assets), "assets": assets}, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/library/load":
+            lib = getattr(self.system, "library", None)
+            if lib is None:
+                from amadeus.house.asset_library import AssetLibraryManager
+                lib = AssetLibraryManager(data_dir=self.system.data_dir)
+                self.system.library = lib
+
+            asset_id = str(data.get("id") or "").strip()
+            asset_type = str(data.get("asset_type") or "").strip().lower()
+            if not asset_id or not asset_type:
+                return "400 Bad Request", "application/json", b'{"error":"missing_id_or_type"}'
+
+            # 1. Loading Voice into Active Character & System
+            if asset_type == "voice":
+                voice_id = str(data.get("preview_url") or "es-ES-ElviraNeural")
+                voice_engine = "edge"
+                if "qwen3" in asset_id:
+                    voice_engine = "qwen3_kurisu"
+                elif "fish" in asset_id:
+                    voice_engine = "fish"
+
+                if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
+                    active_char = self.system.profiles.character_manager.get_active_character()
+                    if active_char:
+                        active_char.voice_id = voice_id
+                        active_char.voice_engine = voice_engine
+                        self.system.profiles.character_manager.update_character(active_char.id, {
+                            "voice_id": voice_id,
+                            "voice_engine": voice_engine,
+                        })
+                self.system.settings.edge_tts_voice = voice_id
+                self.system.settings.voice_engine = voice_engine
+                self.system.settings.save(self.system.data_dir)
+                await self._apply_settings_reload()
+                return (
+                    "200 OK",
+                    "application/json",
+                    json.dumps({"status": "loaded", "type": "voice", "voice_id": voice_id}, ensure_ascii=False).encode("utf-8"),
+                )
+
+            # 2. Loading 3D Avatar Model (.VRM)
+            if asset_type == "model":
+                download_url = str(data.get("download_url") or "")
+                dest_vrm = self.system.data_dir / "avatar.vrm"
+                # If bundled model
+                if download_url.startswith("bundled:"):
+                    from amadeus.config import get_config_dir
+                    bundled = get_config_dir() / "avatar.vrm"
+                    if bundled.exists() and bundled != dest_vrm:
+                        dest_vrm.write_bytes(bundled.read_bytes())
+                elif download_url.startswith("http://") or download_url.startswith("https://"):
+                    # Safe streaming download with AgentShield protection
+                    async with httpx.AsyncClient(timeout=25.0) as client:
+                        resp = await client.get(download_url)
+                        if resp.status_code == 200 and len(resp.content) > 1000:
+                            dest_vrm.write_bytes(resp.content)
+                        else:
+                            return "502 Bad Gateway", "application/json", b'{"error":"download_failed"}'
+
+                if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+                    await self.system.ws_bridge.broadcast({"type": "reload_vrm"})
+                return (
+                    "200 OK",
+                    "application/json",
+                    json.dumps({"status": "loaded", "type": "model"}, ensure_ascii=False).encode("utf-8"),
+                )
+
+            # 3. Loading Animation / Pose
+            if asset_type == "animation":
+                motion_key = str(data.get("download_url") or "").replace("motion:", "")
+                if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+                    await self.system.ws_bridge.broadcast({
+                        "type": "avatar_pose",
+                        "gesture": motion_key,
+                        "emotion": data.get("linked_emotion", "happy"),
+                        "phrase": data.get("phrase", ""),
+                    })
+                return (
+                    "200 OK",
+                    "application/json",
+                    json.dumps({"status": "loaded", "type": "animation", "gesture": motion_key}, ensure_ascii=False).encode("utf-8"),
+                )
+
+            return "400 Bad Request", "application/json", b'{"error":"unknown_asset_type"}'
+
+        if method == "GET" and path == "/api/gestures":
+            lib = getattr(self.system, "library", None)
+            if lib is None:
+                from amadeus.house.asset_library import AssetLibraryManager
+                lib = AssetLibraryManager(data_dir=self.system.data_dir)
+                self.system.library = lib
+
+            gestures = lib.list_all_gestures()
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"total": len(gestures), "gestures": gestures}, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/gestures/save":
+            lib = getattr(self.system, "library", None)
+            if lib is None:
+                from amadeus.house.asset_library import AssetLibraryManager
+                lib = AssetLibraryManager(data_dir=self.system.data_dir)
+                self.system.library = lib
+
+            saved = lib.save_custom_gesture(data)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "saved", "gesture": saved.to_dict()}, ensure_ascii=False).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/gestures/delete":
+            lib = getattr(self.system, "library", None)
+            if lib is None:
+                from amadeus.house.asset_library import AssetLibraryManager
+                lib = AssetLibraryManager(data_dir=self.system.data_dir)
+                self.system.library = lib
+
+            gid = str(data.get("id") or "").strip()
+            deleted = lib.delete_custom_gesture(gid)
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "deleted" if deleted else "not_found"}).encode("utf-8"),
+            )
+
+        if method == "POST" and path == "/api/gestures/preview":
+            # Broadcast the custom kinematics pose in real time to the 3D avatar overlay
+            if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+                await self.system.ws_bridge.broadcast({
+                    "type": "preview_gesture",
+                    "pose": data,
+                })
+            return (
+                "200 OK",
+                "application/json",
+                b'{"status":"previewing"}',
+            )
+
         if method == "POST" and path == "/api/chat":
             text = str(data.get("text", "")).strip()
             reply, audio_path_str = await self.system.pc_gateway.send_local_prompt(

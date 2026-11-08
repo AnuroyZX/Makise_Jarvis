@@ -1102,6 +1102,155 @@
       from { opacity: 0; transform: translate3d(0, -10px, 0); }
       to { opacity: 1; transform: translate3d(0, 0, 0); }
     }
+    /* Library & Motion Studio Styles */
+    .lib-tab-switcher {
+      display: flex;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-glass-subtle);
+      width: fit-content;
+    }
+    .lib-tab-btn {
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-spring);
+    }
+    .lib-tab-btn.active {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(37, 99, 235, 0.3) 100%);
+      color: #fff;
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2);
+    }
+    .lib-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+      max-height: calc(100vh - 240px);
+      overflow-y: auto;
+      padding-right: 4px;
+      padding-bottom: 24px;
+    }
+    .lib-card {
+      background: var(--bg-glass-card);
+      border: 1px solid var(--border-glass-subtle);
+      border-radius: var(--radius-md);
+      padding: 13px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+      transition: all 0.22s var(--ease-spring);
+      position: relative;
+    }
+    .lib-card:hover {
+      background: var(--bg-glass-card-hover);
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 22px rgba(2, 132, 199, 0.22);
+    }
+    .lib-tag-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .lib-type-pill {
+      font-size: 0.62rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+    .lib-type-voice {
+      background: rgba(244, 63, 94, 0.18);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.35);
+    }
+    .lib-type-model {
+      background: rgba(168, 85, 247, 0.18);
+      color: #d8b4fe;
+      border: 1px solid rgba(168, 85, 247, 0.35);
+    }
+    .lib-type-anim {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fde68a;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .lib-license-pill {
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .lib-card-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #f0f9ff;
+    }
+    .lib-card-author {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+    .lib-card-desc {
+      font-size: 0.74rem;
+      line-height: 1.38;
+      color: #cbd5e1;
+      margin: 4px 0;
+    }
+    .lib-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: auto;
+      border-top: 1px solid var(--border-glass-subtle);
+      padding-top: 8px;
+    }
+
+    /* Motion Studio Layout */
+    .studio-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      max-height: calc(100vh - 240px);
+      overflow-y: auto;
+      padding-right: 4px;
+      padding-bottom: 24px;
+    }
+    @media (max-width: 900px) {
+      .studio-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-bottom: 10px;
+    }
+    .slider-label-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #bae6fd;
+    }
+    .slider-val {
+      font-family: monospace;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
   </style>
 </head>
 <body>
@@ -1170,11 +1319,18 @@
         <span class="nav-label">Archivos</span>
       </button>
 
+      <button class="nav-btn" id="nav-library" data-nav="library" onclick="switchSubwindow('library')">
+        <div class="nav-indicator"></div>
+        <span class="nav-key-badge">6</span>
+        <div class="nav-icon-box">📦</div>
+        <span class="nav-label">Biblioteca</span>
+      </button>
+
       <div class="nav-divider"></div>
 
       <button class="nav-btn" id="nav-settings" data-nav="settings" onclick="switchSubwindow('settings')">
         <div class="nav-indicator"></div>
-        <span class="nav-key-badge">6</span>
+        <span class="nav-key-badge">7</span>
         <div class="nav-icon-box">⚙️</div>
         <span class="nav-label">Ajustes</span>
       </button>
@@ -1519,6 +1675,223 @@
             <button class="secondary" onclick="saveUserMd()">💾 Guardar Memoria</button>
           </div>
           <textarea id="userMdEditor" rows="5" style="resize:vertical;"></textarea>
+        </div>
+      </div>
+
+      <!-- SUB-WINDOW: FREE ASSETS LIBRARY & GESTURE STUDIO -->
+      <div class="subwindow-pane" id="pane-library">
+        <div class="card-title-row" style="margin-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="card-title" style="margin-bottom:0;">📦 Biblioteca Libre & Motion Studio</div>
+            <span class="badge" id="libraryCountBadge">Cargando catálogo...</span>
+          </div>
+          <div class="lib-tab-switcher">
+            <button class="lib-tab-btn active" id="btnTabStore" onclick="switchLibraryView('store')">🏪 Catálogo Libre</button>
+            <button class="lib-tab-btn" id="btnTabStudio" onclick="switchLibraryView('studio')">🎬 Motion & Gesture Studio</button>
+          </div>
+        </div>
+
+        <!-- VIEW 1: FREE ASSETS STORE -->
+        <div id="viewLibraryStore">
+          <div class="apps-toolbar">
+            <div class="chip active" onclick="filterLibraryType('all', this)">✨ Todo</div>
+            <div class="chip" onclick="filterLibraryType('voice', this)">🎙️ Voces</div>
+            <div class="chip" onclick="filterLibraryType('model', this)">🎭 Modelos 3D</div>
+            <div class="chip" onclick="filterLibraryType('animation', this)">💃 Animaciones</div>
+
+            <div class="apps-search-wrap">
+              <span class="apps-search-icon">🔍</span>
+              <input type="text" id="libSearchInput" placeholder="Buscar voces, avatares o animaciones de uso libre..." oninput="onLibrarySearch()">
+            </div>
+
+            <input type="file" id="libFileInput" accept=".vrm,.mp3,.wav" style="display:none;" onchange="handleLocalFileImport(event)">
+            <button class="secondary" style="font-size:0.75rem; padding:6px 12px;" onclick="document.getElementById('libFileInput').click()">
+              📂 Importar Archivo Local (.vrm / audio)
+            </button>
+          </div>
+
+          <div class="lib-card-grid" id="libraryCardsGrid">
+            <!-- Asset cards rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- VIEW 2: MOTION & GESTURE STUDIO (ANIMATION EDITOR) -->
+        <div id="viewMotionStudio" style="display:none;">
+          <div class="glass-card" style="padding:10px 14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:260px;">
+              <label style="margin:0; font-weight:700; font-size:0.78rem; white-space:nowrap;">Preset / Gesto:</label>
+              <select id="studioGestureSelect" onchange="onStudioGestureSelect(this.value)" style="flex:1;">
+                <!-- Populated dynamically -->
+              </select>
+              <button class="secondary" style="font-size:0.75rem; padding:5px 10px;" onclick="onStudioNewGesture()">➕ Nuevo Gesto</button>
+              <button class="secondary" id="btnStudioDelete" style="font-size:0.75rem; padding:5px 10px; display:none;" onclick="onStudioDeleteGesture()">🗑️</button>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button style="font-size:0.78rem; padding:6px 14px;" onclick="previewStudioGesture()">👁️ Probar en Avatar 3D</button>
+              <button style="font-size:0.78rem; padding:6px 14px; background:linear-gradient(135deg, #10b981 0%, #059669 100%);" onclick="saveStudioGesture()">💾 Guardar Gesto</button>
+            </div>
+          </div>
+
+          <div class="studio-grid">
+            <!-- Column 1: Identity & Head -->
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <div class="glass-card">
+                <div class="card-title-row">
+                  <span style="font-size:0.84rem; font-weight:700; color:#bae6fd;">Identidad y Activación del Gesto</span>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                  <div>
+                    <label>Nombre del Gesto</label>
+                    <input type="text" id="sg_name" placeholder="Ej: Saludo con reverencia">
+                  </div>
+                  <div>
+                    <label>Expresión Facial Asociada</label>
+                    <select id="sg_emotion" onchange="previewStudioGesture()">
+                      <option value="neutral">😐 Neutral</option>
+                      <option value="happy">😊 Feliz / Sonriente</option>
+                      <option value="tsundere_blush">😳 Sonrojo Tsundere</option>
+                      <option value="analytical">🧐 Analítica / Curiosa</option>
+                      <option value="smug">😏 Confiada / Smug</option>
+                      <option value="surprised">😲 Sorprendida</option>
+                      <option value="angry">😠 Enojada</option>
+                      <option value="serious">😐 Seria</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
+                  <div>
+                    <label>Disparador Automático</label>
+                    <select id="sg_trigger">
+                      <option value="manual">Manual / Solo Botón</option>
+                      <option value="greeting">👋 Saludo al Iniciar Sesión</option>
+                      <option value="thinking">🤔 Al Reflexionar / Buscar</option>
+                      <option value="happy">✨ Al Responder Feliz</option>
+                      <option value="tsundere">😤 Al Mostrar Orgullo / Pout</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Descripción Breve</label>
+                    <input type="text" id="sg_desc" placeholder="Gesto cordial para recibir al usuario">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Head & Gaze Sliders -->
+              <div class="glass-card">
+                <div class="card-title-row">
+                  <span style="font-size:0.84rem; font-weight:700; color:#bae6fd;">Kinemática de Cabeza y Mirada</span>
+                </div>
+                <div class="slider-row">
+                  <div class="slider-label-bar">
+                    <span>Inclinación Vertical (Arriba / Abajo)</span>
+                    <span class="slider-val" id="val_head_x">0.00</span>
+                  </div>
+                  <input type="range" id="sg_head_x" min="-1" max="1" step="0.02" value="0" oninput="updateStudioSlider('head_x', this.value)">
+                </div>
+                <div class="slider-row">
+                  <div class="slider-label-bar">
+                    <span>Giro Horizontal (Izquierda / Derecha)</span>
+                    <span class="slider-val" id="val_head_y">0.00</span>
+                  </div>
+                  <input type="range" id="sg_head_y" min="-1" max="1" step="0.02" value="0" oninput="updateStudioSlider('head_y', this.value)">
+                </div>
+                <div class="slider-row">
+                  <div class="slider-label-bar">
+                    <span>Inclinación Lateral (Roll)</span>
+                    <span class="slider-val" id="val_head_z">0.00</span>
+                  </div>
+                  <input type="range" id="sg_head_z" min="-1" max="1" step="0.02" value="0" oninput="updateStudioSlider('head_z', this.value)">
+                </div>
+              </div>
+            </div>
+
+            <!-- Column 2: Arms & Motion Dynamics -->
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <!-- Arms Sliders -->
+              <div class="glass-card">
+                <div class="card-title-row">
+                  <span style="font-size:0.84rem; font-weight:700; color:#bae6fd;">Pose de Brazos y Extremidades</span>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                  <div>
+                    <div style="font-size:0.75rem; font-weight:700; color:#38bdf8; margin-bottom:6px;">Brazo Derecho</div>
+                    <div class="slider-row">
+                      <div class="slider-label-bar">
+                        <span>Elevación Frontal</span>
+                        <span class="slider-val" id="val_r_arm_x">0.00</span>
+                      </div>
+                      <input type="range" id="sg_r_arm_x" min="-1" max="1" step="0.02" value="0" oninput="updateStudioSlider('r_arm_x', this.value)">
+                    </div>
+                    <div class="slider-row">
+                      <div class="slider-label-bar">
+                        <span>Apertura Lateral</span>
+                        <span class="slider-val" id="val_r_arm_z">0.00</span>
+                      </div>
+                      <input type="range" id="sg_r_arm_z" min="-1" max="1" step="0.02" value="0" oninput="updateStudioSlider('r_arm_z', this.value)">
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style="font-size:0.75rem; font-weight:700; color:#38bdf8; margin-bottom:6px;">Brazo Izquierdo</div>
+                    <div class="slider-row">
+                      <div class="slider-label-bar">
+                        <span>Elevación Frontal</span>
+                        <span class="slider-val" id="val_l_arm_x">0.00</span>
+                      </div>
+                      <input type="range" id="sg_l_arm_x" min="-1" max="1" step="0.02" value="0" oninput="updateStudioSlider('l_arm_x', this.value)">
+                    </div>
+                    <div class="slider-row">
+                      <div class="slider-label-bar">
+                        <span>Apertura Lateral</span>
+                        <span class="slider-val" id="val_l_arm_z">0.00</span>
+                      </div>
+                      <input type="range" id="sg_l_arm_z" min="-1" max="1" step="0.02" value="0" oninput="updateStudioSlider('l_arm_z', this.value)">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Motion Dynamics -->
+              <div class="glass-card">
+                <div class="card-title-row">
+                  <span style="font-size:0.84rem; font-weight:700; color:#bae6fd;">Dinámica de Animación y Oscilación</span>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                  <div>
+                    <label>Modo de Movimiento</label>
+                    <select id="sg_motion_type" onchange="previewStudioGesture()">
+                      <option value="static">Estático (Pose Fija)</option>
+                      <option value="wave">👋 Saludar (Oscilación Rítmica)</option>
+                      <option value="nod">🙇 Asentir (Arriba y Abajo)</option>
+                      <option value="breathe">🫁 Respiración Acentuada</option>
+                      <option value="bounce">✨ Rebote Animado Alegre</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Duración (Segundos)</label>
+                    <input type="number" id="sg_duration" min="1" max="10" step="0.5" value="3.5" onchange="previewStudioGesture()">
+                  </div>
+                </div>
+
+                <div class="slider-row" style="margin-top:8px;">
+                  <div class="slider-label-bar">
+                    <span>Velocidad de Oscilación (Tempo)</span>
+                    <span class="slider-val" id="val_motion_speed">1.0x</span>
+                  </div>
+                  <input type="range" id="sg_motion_speed" min="0.2" max="3.0" step="0.1" value="1.0" oninput="updateStudioSlider('motion_speed', this.value)">
+                </div>
+
+                <div class="slider-row">
+                  <div class="slider-label-bar">
+                    <span>Amplitud del Movimiento</span>
+                    <span class="slider-val" id="val_motion_amplitude">0.25</span>
+                  </div>
+                  <input type="range" id="sg_motion_amplitude" min="0.0" max="1.0" step="0.05" value="0.25" oninput="updateStudioSlider('motion_amplitude', this.value)">
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1877,6 +2250,10 @@ function switchSubwindow(paneId) {
   if (paneId === 'apps' && (!currentAppsList || currentAppsList.length === 0)) {
     loadApps();
   }
+  if (paneId === 'library') {
+    loadLibraryAssets();
+    loadStudioGestures();
+  }
   if (paneId === 'settings' || paneId === 'voice') {
     loadState();
   }
@@ -1956,6 +2333,20 @@ const NAV_TOOLTIP_DATA = {
     tip: 'Las acciones delicadas requieren tu confirmación previa.',
     shortcut: 'Ctrl+5'
   },
+  library: {
+    icon: '📦',
+    title: 'Biblioteca Libre & Gestos',
+    tag: 'RECURSOS Y MODDING',
+    tagColor: '#a855f7',
+    summary: 'Tienda de voces de uso libre, avatares 3D (.VRM), animaciones y editor visual e interactivo de gestos cinemáticos.',
+    bullets: [
+      'Explora y carga voces neurales libres y modelos VRM',
+      'Estudio cinemático: diseña y calibra gestos corporales',
+      'Previsualización en tiempo real sobre el avatar flotante'
+    ],
+    tip: 'Diseña y guarda tus propias poses para que el bot las use.',
+    shortcut: 'Ctrl+6'
+  },
   settings: {
     icon: '⚙️',
     title: 'Ajustes del Sistema',
@@ -1968,7 +2359,7 @@ const NAV_TOOLTIP_DATA = {
       'Recarga en caliente de configuraciones sin reiniciar la app'
     ],
     tip: 'Al guardar, los cambios se aplican de inmediato en caliente.',
-    shortcut: 'Ctrl+6'
+    shortcut: 'Ctrl+7'
   }
 };
 
@@ -2043,14 +2434,14 @@ function hideNavTooltip() {
   if (card) card.classList.remove('visible');
 }
 
-// Global Keyboard Navigation (Ctrl+1 to Ctrl+6)
+// Global Keyboard Navigation (Ctrl+1 to Ctrl+7)
 window.addEventListener('keydown', (e) => {
   const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
   if (activeTag === 'input' || activeTag === 'textarea' || (document.activeElement && document.activeElement.isContentEditable)) {
     return;
   }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '6') {
-    const panes = ['chat', 'characters', 'voice', 'apps', 'tools', 'settings'];
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '7') {
+    const panes = ['chat', 'characters', 'voice', 'apps', 'tools', 'library', 'settings'];
     const idx = parseInt(e.key, 10) - 1;
     if (panes[idx]) {
       e.preventDefault();
@@ -3196,6 +3587,410 @@ function filterAppsByCategory(category, el) {
 function onAppsSearch() {
   currentAppSearchQuery = document.getElementById('appsSearchInput').value || '';
   renderAppsGrid();
+}
+
+// ==========================================
+// FREE ASSET LIBRARY & MOTION STUDIO ENGINE
+// ==========================================
+let currentLibView = 'store';
+let currentLibTypeFilter = 'all';
+let currentLibSearchQuery = '';
+let currentLibAssets = [];
+
+let currentStudioGestures = [];
+let selectedStudioGestureId = null;
+let studioPreviewThrottle = null;
+
+function switchLibraryView(view) {
+  currentLibView = view;
+  const storeView = document.getElementById('viewLibraryStore');
+  const studioView = document.getElementById('viewMotionStudio');
+  const btnStore = document.getElementById('btnTabStore');
+  const btnStudio = document.getElementById('btnTabStudio');
+
+  if (view === 'store') {
+    storeView.style.display = 'block';
+    studioView.style.display = 'none';
+    btnStore.classList.add('active');
+    btnStudio.classList.remove('active');
+    loadLibraryAssets();
+  } else {
+    storeView.style.display = 'none';
+    studioView.style.display = 'block';
+    btnStore.classList.remove('active');
+    btnStudio.classList.add('active');
+    loadStudioGestures();
+  }
+}
+
+async function loadLibraryAssets() {
+  const badge = document.getElementById('libraryCountBadge');
+  if (badge) badge.textContent = 'Cargando...';
+  try {
+    const q = encodeURIComponent(currentLibSearchQuery);
+    const res = await fetch(`${baseUrl}/api/library/assets?type=${currentLibTypeFilter}&query=${q}`);
+    const data = await res.json();
+    if (res.ok && data.assets) {
+      currentLibAssets = data.assets;
+      if (badge) badge.textContent = `${data.total} Recursos Libres`;
+      renderLibraryGrid();
+    }
+  } catch (err) {
+    console.error('Error loading library assets:', err);
+    if (badge) badge.textContent = 'Error al cargar';
+  }
+}
+
+function renderLibraryGrid() {
+  const container = document.getElementById('libraryCardsGrid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!currentLibAssets || currentLibAssets.length === 0) {
+    container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:30px; color:#94a3b8; font-size:0.85rem;">No se encontraron recursos libres con esos filtros.</div>';
+    return;
+  }
+
+  currentLibAssets.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'lib-card';
+
+    let typePillClass = 'lib-type-voice';
+    let typeIcon = '🎙️';
+    let typeName = 'Voz Neural';
+    if (item.asset_type === 'model') {
+      typePillClass = 'lib-type-model';
+      typeIcon = '🎭';
+      typeName = 'Modelo 3D';
+    } else if (item.asset_type === 'animation') {
+      typePillClass = 'lib-type-anim';
+      typeIcon = '💃';
+      typeName = 'Animación';
+    }
+
+    card.innerHTML = `
+      <div class="lib-tag-row">
+        <span class="lib-type-pill ${typePillClass}">${typeIcon} ${typeName}</span>
+        <span class="lib-license-pill">⚖️ ${item.license}</span>
+      </div>
+      <div>
+        <div class="lib-card-title">${item.name}</div>
+        <div class="lib-card-author">Por: ${item.author} · <span style="color:#94a3b8;">${item.category}</span></div>
+      </div>
+      <div class="lib-card-desc">${item.description}</div>
+      <div style="font-size:0.68rem; color:#94a3b8;">Tamaño: <b>${item.file_size}</b></div>
+      <div class="lib-card-actions">
+        <button class="secondary" style="font-size:0.72rem; padding:5px 9px;" onclick="testLibraryAsset('${item.id}')">▶ Probar</button>
+        <button style="font-size:0.72rem; padding:5px 10px; flex:1;" onclick="loadLibraryAsset('${item.id}')">⚡ Cargar en Asistente</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function filterLibraryType(type, el) {
+  currentLibTypeFilter = type;
+  const chips = document.querySelectorAll('#viewLibraryStore .chip');
+  chips.forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  loadLibraryAssets();
+}
+
+function onLibrarySearch() {
+  currentLibSearchQuery = document.getElementById('libSearchInput').value || '';
+  loadLibraryAssets();
+}
+
+async function testLibraryAsset(assetId) {
+  const item = currentLibAssets.find(a => a.id === assetId);
+  if (!item) return;
+
+  if (item.asset_type === 'voice') {
+    showToast('Probando Voz', `Reproduciendo muestra de ${item.name}...`, 'info');
+    if (item.preview_url.startsWith('/api/')) {
+      const a = new Audio(`${baseUrl}${item.preview_url}?token=${encodeURIComponent(amadeusToken)}`);
+      a.play().catch(e => console.warn(e));
+    } else {
+      // Apply and trigger audio test
+      try {
+        const res = await fetch(`${baseUrl}/api/library/load`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item),
+        });
+        if (res.ok) {
+          testVoiceInAvatar();
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  } else if (item.asset_type === 'animation') {
+    showToast('Gesto Activo', `Probando ${item.name} en el avatar 3D...`, 'info');
+    try {
+      await fetch(`${baseUrl}/api/library/load`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  } else if (item.asset_type === 'model') {
+    showToast('Modelo 3D', `Para ver este avatar 3D en pantalla, pulsa "⚡ Cargar en Asistente".`, 'info');
+  }
+}
+
+async function loadLibraryAsset(assetId) {
+  const item = currentLibAssets.find(a => a.id === assetId);
+  if (!item) return;
+
+  showToast('Cargando Recurso', `Aplicando ${item.name}...`, 'info');
+  try {
+    const res = await fetch(`${baseUrl}/api/library/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Cargado con Éxito', `"${item.name}" activado inmediatamente`, 'success');
+      if (item.asset_type === 'voice') {
+        await loadState();
+        await loadCharacters();
+      }
+    } else {
+      alert(`Error al cargar recurso: ${data.error || 'Fallo desconocido'}`);
+    }
+  } catch (err) {
+    alert(`Error de red: ${err.message}`);
+  }
+}
+
+async function handleLocalFileImport(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const fname = file.name.toLowerCase();
+  showToast('Importando Archivo', `Procesando ${file.name}...`, 'info');
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const arrayBuffer = e.target.result;
+      if (fname.endsWith('.vrm')) {
+        const res = await fetch(`${baseUrl}/api/upload_vrm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: arrayBuffer,
+        });
+        if (res.ok) {
+          showToast('Avatar 3D Importado', `"${file.name}" cargado exitosamente en el avatar.`, 'success');
+        } else {
+          alert('Error al importar el archivo VRM.');
+        }
+      } else if (fname.endsWith('.mp3') || fname.endsWith('.wav')) {
+        const res = await fetch(`${baseUrl}/api/upload_voice_ref`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: arrayBuffer,
+        });
+        if (res.ok) {
+          showToast('Voz de Referencia Guardada', `"${file.name}" añadida para Voice Lab.`, 'success');
+        } else {
+          alert('Error al importar el archivo de audio.');
+        }
+      }
+    } catch (err) {
+      alert(`Error al subir archivo: ${err.message}`);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ==========================================
+// MOTION & GESTURE STUDIO ENGINE
+// ==========================================
+async function loadStudioGestures() {
+  try {
+    const res = await fetch(`${baseUrl}/api/gestures`);
+    const data = await res.json();
+    if (res.ok && data.gestures) {
+      currentStudioGestures = data.gestures;
+      const select = document.getElementById('studioGestureSelect');
+      if (select) {
+        select.innerHTML = '';
+        currentStudioGestures.forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = `${g.name}${g.is_custom ? ' (Personalizado)' : ' (Preset)'}`;
+          select.appendChild(opt);
+        });
+
+        if (currentStudioGestures.length > 0) {
+          const targetId = selectedStudioGestureId || currentStudioGestures[0].id;
+          select.value = targetId;
+          onStudioGestureSelect(targetId);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error loading gestures:', err);
+  }
+}
+
+function onStudioGestureSelect(gestureId) {
+  selectedStudioGestureId = gestureId;
+  const g = currentStudioGestures.find(it => it.id === gestureId);
+  if (!g) return;
+
+  document.getElementById('sg_name').value = g.name || '';
+  document.getElementById('sg_desc').value = g.description || '';
+  document.getElementById('sg_emotion').value = g.linked_emotion || 'neutral';
+  document.getElementById('sg_trigger').value = g.trigger_event || 'manual';
+
+  setSliderAndVal('head_x', g.head_x || 0);
+  setSliderAndVal('head_y', g.head_y || 0);
+  setSliderAndVal('head_z', g.head_z || 0);
+
+  setSliderAndVal('r_arm_x', g.r_arm_x || 0);
+  setSliderAndVal('r_arm_z', g.r_arm_z || 0);
+  setSliderAndVal('l_arm_x', g.l_arm_x || 0);
+  setSliderAndVal('l_arm_z', g.l_arm_z || 0);
+
+  document.getElementById('sg_motion_type').value = g.motion_type || 'static';
+  setSliderAndVal('motion_speed', g.motion_speed !== undefined ? g.motion_speed : 1.0, 'x');
+  setSliderAndVal('motion_amplitude', g.motion_amplitude !== undefined ? g.motion_amplitude : 0.25);
+  document.getElementById('sg_duration').value = g.duration_sec || 3.5;
+
+  const btnDel = document.getElementById('btnStudioDelete');
+  if (btnDel) {
+    btnDel.style.display = g.is_custom ? 'inline-block' : 'none';
+  }
+}
+
+function setSliderAndVal(param, val, unit = '') {
+  const el = document.getElementById(`sg_${param}`);
+  const valEl = document.getElementById(`val_${param}`);
+  if (el) el.value = val;
+  if (valEl) {
+    valEl.textContent = `${parseFloat(val).toFixed(2)}${unit}`;
+  }
+}
+
+function updateStudioSlider(param, val) {
+  const valEl = document.getElementById(`val_${param}`);
+  const unit = param === 'motion_speed' ? 'x' : '';
+  if (valEl) {
+    valEl.textContent = `${parseFloat(val).toFixed(2)}${unit}`;
+  }
+
+  // Throttle live preview to ~40ms for buttery-smooth interaction without flooding ws
+  if (studioPreviewThrottle) clearTimeout(studioPreviewThrottle);
+  studioPreviewThrottle = setTimeout(previewStudioGesture, 40);
+}
+
+function onStudioNewGesture() {
+  selectedStudioGestureId = null;
+  document.getElementById('sg_name').value = 'Mi Gesto Personalizado';
+  document.getElementById('sg_desc').value = 'Gesto creado en el Motion Studio';
+  document.getElementById('sg_emotion').value = 'happy';
+  document.getElementById('sg_trigger').value = 'manual';
+
+  setSliderAndVal('head_x', 0.04);
+  setSliderAndVal('head_y', 0.0);
+  setSliderAndVal('head_z', 0.06);
+
+  setSliderAndVal('r_arm_x', -0.3);
+  setSliderAndVal('r_arm_z', -0.7);
+  setSliderAndVal('l_arm_x', 0.0);
+  setSliderAndVal('l_arm_z', 0.0);
+
+  document.getElementById('sg_motion_type').value = 'wave';
+  setSliderAndVal('motion_speed', 1.2, 'x');
+  setSliderAndVal('motion_amplitude', 0.35);
+  document.getElementById('sg_duration').value = 3.5;
+
+  const btnDel = document.getElementById('btnStudioDelete');
+  if (btnDel) btnDel.style.display = 'none';
+
+  previewStudioGesture();
+}
+
+function collectStudioPoseData() {
+  return {
+    id: selectedStudioGestureId || '',
+    name: document.getElementById('sg_name').value.trim() || 'Gesto sin nombre',
+    description: document.getElementById('sg_desc').value.trim() || '',
+    linked_emotion: document.getElementById('sg_emotion').value,
+    trigger_event: document.getElementById('sg_trigger').value,
+    head_x: parseFloat(document.getElementById('sg_head_x').value) || 0,
+    head_y: parseFloat(document.getElementById('sg_head_y').value) || 0,
+    head_z: parseFloat(document.getElementById('sg_head_z').value) || 0,
+    r_arm_x: parseFloat(document.getElementById('sg_r_arm_x').value) || 0,
+    r_arm_z: parseFloat(document.getElementById('sg_r_arm_z').value) || 0,
+    l_arm_x: parseFloat(document.getElementById('sg_l_arm_x').value) || 0,
+    l_arm_z: parseFloat(document.getElementById('sg_l_arm_z').value) || 0,
+    motion_type: document.getElementById('sg_motion_type').value,
+    motion_speed: parseFloat(document.getElementById('sg_motion_speed').value) || 1.0,
+    motion_amplitude: parseFloat(document.getElementById('sg_motion_amplitude').value) || 0.25,
+    duration_sec: parseFloat(document.getElementById('sg_duration').value) || 3.5,
+    is_custom: true,
+  };
+}
+
+async function previewStudioGesture() {
+  const pose = collectStudioPoseData();
+  try {
+    await fetch(`${baseUrl}/api/gestures/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pose),
+    });
+  } catch (err) {
+    console.error('Error previewing gesture:', err);
+  }
+}
+
+async function saveStudioGesture() {
+  const pose = collectStudioPoseData();
+  try {
+    const res = await fetch(`${baseUrl}/api/gestures/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pose),
+    });
+    const d = await res.json();
+    if (res.ok && d.gesture) {
+      showToast('Gesto Guardado', `"${d.gesture.name}" guardado exitosamente`, 'success');
+      selectedStudioGestureId = d.gesture.id;
+      await loadStudioGestures();
+    } else {
+      alert(`Error al guardar gesto: ${d.error || 'Fallo desconocido'}`);
+    }
+  } catch (err) {
+    alert(`Error de red: ${err.message}`);
+  }
+}
+
+async function onStudioDeleteGesture() {
+  if (!selectedStudioGestureId) return;
+  if (!confirm('¿Eliminar este gesto personalizado permanentemente?')) return;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/gestures/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selectedStudioGestureId }),
+    });
+    if (res.ok) {
+      showToast('Gesto Eliminado', 'Gesto retirado de tu biblioteca', 'info');
+      selectedStudioGestureId = null;
+      await loadStudioGestures();
+    }
+  } catch (err) {
+    alert(`Error al eliminar: ${err.message}`);
+  }
 }
 
 setupNavTooltips();

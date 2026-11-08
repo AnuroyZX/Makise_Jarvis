@@ -247,6 +247,8 @@ let mixer = null;
 let currentEmotion = 'neutral';
 let currentGesture = 'idle';
 let gestureTimer = 0;
+let activeCustomPose = null;
+let customPoseTimer = 0;
 let bubblesMode = 'all';
 let ws = null;
 let httpUrl = '';
@@ -489,6 +491,16 @@ function applyEmotion(emotion) {
 function triggerGesture(gestureName) {
   currentGesture = gestureName || 'idle';
   gestureTimer = 2.6;
+  activeCustomPose = null;
+}
+
+function applyCustomGesturePreview(pose) {
+  if (!pose) return;
+  activeCustomPose = pose;
+  customPoseTimer = parseFloat(pose.duration_sec) || 3.5;
+  if (pose.linked_emotion) {
+    applyEmotion(pose.linked_emotion);
+  }
 }
 
 const clock = new THREE.Clock();
@@ -564,7 +576,40 @@ function animate() {
       }
     }
 
-    if (gestureBlend > 0.001) {
+    if (activeCustomPose && customPoseTimer > 0) {
+      customPoseTimer -= delta;
+      const cp = activeCustomPose;
+      const mSpeed = parseFloat(cp.motion_speed) || 1.0;
+      const mAmp = cp.motion_amplitude !== undefined ? parseFloat(cp.motion_amplitude) : 0.25;
+
+      let osc = 0;
+      if (cp.motion_type === 'wave') {
+        osc = Math.sin(elapsed * 10.0 * mSpeed) * 0.32 * mAmp;
+      } else if (cp.motion_type === 'nod') {
+        headTargetX += Math.sin(elapsed * 8.0 * mSpeed) * 0.16 * mAmp;
+      } else if (cp.motion_type === 'breathe') {
+        osc = Math.sin(elapsed * 3.0 * mSpeed) * 0.08 * mAmp;
+      } else if (cp.motion_type === 'bounce') {
+        headTargetX += Math.abs(Math.sin(elapsed * 6.5 * mSpeed)) * -0.05 * mAmp;
+      }
+
+      headTargetX = THREE.MathUtils.lerp(headTargetX, (parseFloat(cp.head_x) || 0) * 0.45, 0.2);
+      headTargetZ = THREE.MathUtils.lerp(headTargetZ, (parseFloat(cp.head_z) || 0) * 0.35, 0.2);
+
+      const targetRz = (parseFloat(cp.r_arm_z) || 0) * armSign + osc;
+      const targetRx = parseFloat(cp.r_arm_x) || 0;
+      const targetLz = (parseFloat(cp.l_arm_z) || 0) * -armSign - osc;
+      const targetLx = parseFloat(cp.l_arm_x) || 0;
+
+      rArmZ = THREE.MathUtils.lerp(rArmZ, targetRz, 0.2);
+      rArmX = THREE.MathUtils.lerp(rArmX, targetRx, 0.2);
+      lArmZ = THREE.MathUtils.lerp(lArmZ, targetLz, 0.2);
+      lArmX = THREE.MathUtils.lerp(lArmX, targetLx, 0.2);
+
+      if (customPoseTimer <= 0) {
+        activeCustomPose = null;
+      }
+    } else if (gestureBlend > 0.001) {
       if (currentGesture === 'wave') {
         const waveAngle = -armSign * 0.88 + Math.sin(elapsed * 12.0) * 0.28;
         rArmZ = THREE.MathUtils.lerp(rArmZ, waveAngle, gestureBlend);
@@ -606,6 +651,14 @@ function animate() {
         headTargetZ = THREE.MathUtils.lerp(headTargetZ, 0.06, gestureBlend);
         rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.72, gestureBlend);
         rArmX = THREE.MathUtils.lerp(rArmX, 0.25, gestureBlend);
+      } else if (currentGesture === 'cheer') {
+        // Cheerful victory celebration
+        const cheerAngle = -armSign * 1.35 + Math.sin(elapsed * 10.0) * 0.22;
+        rArmZ = THREE.MathUtils.lerp(rArmZ, cheerAngle, gestureBlend);
+        lArmZ = THREE.MathUtils.lerp(lArmZ, -cheerAngle, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, -0.65, gestureBlend);
+        lArmX = THREE.MathUtils.lerp(lArmX, -0.65, gestureBlend);
+        headTargetX = THREE.MathUtils.lerp(headTargetX, -0.12, gestureBlend);
       }
     }
 
@@ -1158,6 +1211,10 @@ async function initConnection() {
         triggerGesture(msg.gesture);
         if (msg.phrase) {
           spawnLateralDialog(msg.phrase, 3200);
+        }
+      } else if (msg.type === 'preview_gesture') {
+        if (msg.pose) {
+          applyCustomGesturePreview(msg.pose);
         }
       } else if (msg.type === 'mic_transcript') {
         spawnLateralDialog(`🗣️ Tú: "${msg.text}"`, 2600);
