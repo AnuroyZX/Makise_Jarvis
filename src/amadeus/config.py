@@ -125,6 +125,8 @@ class AmadeusSettings:
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     elevenlabs_max_chars_per_reply: int = 380  # Credit Guard threshold
     edge_tts_voice: str = "es-MX-DaliaNeural"
+    edge_tts_rate: str = "+0%"
+    edge_tts_pitch: str = "+0Hz"
     voice_replies_enabled: bool = True
 
     # Desktop Companion (Electron Overlay, Profiles, DSP & Bubbles)

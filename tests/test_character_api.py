@@ -43,6 +43,23 @@ async def test_character_api_endpoints(tmp_path: Path):
     assert cr_data["status"] == "created"
     assert cr_data["character"]["id"] == "kira"
 
+    # 3b. Test POST /api/character/update
+    update_body = json.dumps({
+        "id": "kira",
+        "name": "Kira Modificada",
+        "voice_engine": "edge",
+        "voice_id": "es-ES-ElviraNeural",
+        "dsp_preset": "phone",
+        "custom_system_prompt": "Eres Kira Modificada con nueva directiva.",
+    }).encode("utf-8")
+    code, mime, body = await server._route_request("POST", "/api/character/update", update_body)
+    assert code == "200 OK"
+    up_data = json.loads(body.decode("utf-8"))
+    assert up_data["status"] == "updated"
+    assert up_data["character"]["name"] == "Kira Modificada"
+    assert up_data["character"]["voice_id"] == "es-ES-ElviraNeural"
+    assert up_data["character"]["dsp_preset"] == "phone"
+
     # 4. Test POST /api/character/delete
     del_body = json.dumps({"id": "kira"}).encode("utf-8")
     code, mime, body = await server._route_request("POST", "/api/character/delete", del_body)

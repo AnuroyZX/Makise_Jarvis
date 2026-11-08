@@ -79,8 +79,14 @@ class ProfileManager:
     def get_character(self, character_id: str) -> CharacterPack:
         return self.character_manager.get_character(character_id)
 
+    def update_character(self, character_id: str, updates: Dict[str, Any]) -> CharacterPack:
+        return self.character_manager.update_character(character_id, updates)
+
     def set_active_character(self, character_id: str) -> CharacterPack:
         return self.character_manager.set_active_character(character_id)
+
+    def get_active_character_id(self) -> str:
+        return self.character_manager.get_active_character_id()
 
     def get_active_character(self) -> CharacterPack:
         return self.character_manager.get_active_character()

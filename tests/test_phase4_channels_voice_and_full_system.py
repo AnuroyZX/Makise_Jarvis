@@ -245,3 +245,34 @@ async def test_full_9_module_system_ephemeral_ui_and_eco_ram(tmp_path: Path) -> 
         assert snap_eco.process_rss_mb < 45.0
 
         await system.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_voice_retention_on_brain_switch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """
+    Verify that switching brains or saving settings never closes the voice client
+    or causes audio to be lost during subsequent turns.
+    """
+    system = AmadeusSystem(data_dir=tmp_path)
+
+    async def fake_edge_tts(text: str, voice_override: str = None) -> bytes:
+        return b"MP3_MOCK_FALLBACK_AUDIO"
+
+    monkeypatch.setattr(system.voice, "_call_edge_tts", fake_edge_tts)
+
+    # 1. Synthesize before brain switch
+    res1 = await system.voice.synthesize("Hola antes del cambio")
+    assert res1.audio_bytes == b"MP3_MOCK_FALLBACK_AUDIO"
+
+    # 2. Switch brain to claude and trigger settings reload
+    system.settings.active_brain = "claude"
+    system.settings.edge_tts_rate = "+15%"
+    system.settings.edge_tts_pitch = "+6Hz"
+    await system.web_ui._apply_settings_reload()
+
+    # 3. Verify voice client is not None and synthesis still succeeds immediately
+    assert system.voice is not None
+    res2 = await system.voice.synthesize("Hola despues del cambio")
+    assert res2.audio_bytes == b"MP3_MOCK_FALLBACK_AUDIO"
+
+    await system.shutdown()

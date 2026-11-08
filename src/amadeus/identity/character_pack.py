@@ -70,6 +70,8 @@ class CharacterPack:
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
+        if not data.get("custom_system_prompt"):
+            data["custom_system_prompt"] = self.get_soul_content()
         return data
 
     @classmethod
@@ -337,6 +339,48 @@ class CharacterManager:
             encoding="utf-8"
         )
         (folder / "SOUL.md").write_text(soul_prompt.strip(), encoding="utf-8")
+
+        pack = CharacterPack.from_dict(manifest_data, dir_path=folder)
+        return pack
+
+    def update_character(self, character_id: str, updates: Dict[str, Any]) -> CharacterPack:
+        """
+        Updates an existing character's properties (voice, behavior, name, greeting, etc.).
+        If the character is bundled, creates or updates a persistent override in user_chars_dir.
+        """
+        cid = slugify(character_id)
+        current = self.get_character(cid)
+        folder = self.user_chars_dir / cid
+        folder.mkdir(parents=True, exist_ok=True)
+
+        manifest_data = current.to_dict()
+        manifest_data.pop("dir_path", None)
+
+        updatable = (
+            "name", "description", "voice_engine", "voice_id",
+            "dsp_preset", "greeting", "default_user_name", "author"
+        )
+        for key in updatable:
+            if key in updates and str(updates[key]).strip():
+                manifest_data[key] = str(updates[key]).strip()
+
+        # Handle behavior / SOUL update
+        soul_text = updates.get("custom_system_prompt") or updates.get("soul")
+        if soul_text is not None and str(soul_text).strip():
+            manifest_data["custom_system_prompt"] = str(soul_text).strip()
+            (folder / "SOUL.md").write_text(str(soul_text).strip(), encoding="utf-8")
+        elif (folder / "SOUL.md").exists():
+            pass
+        elif current.dir_path and (Path(current.dir_path) / "SOUL.md").exists():
+            (folder / "SOUL.md").write_text(
+                (Path(current.dir_path) / "SOUL.md").read_text(encoding="utf-8"),
+                encoding="utf-8"
+            )
+
+        (folder / "manifest.json").write_text(
+            json.dumps(manifest_data, indent=2, ensure_ascii=False),
+            encoding="utf-8"
+        )
 
         pack = CharacterPack.from_dict(manifest_data, dir_path=folder)
         return pack

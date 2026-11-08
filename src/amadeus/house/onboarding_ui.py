@@ -531,6 +531,8 @@ class EphemeralOnboardingServer:
             self.system.settings.active_profile = pack.id
             self.system.settings.dsp_preset = pack.dsp_preset
             self.system.settings.voice_engine = pack.voice_engine
+            if pack.voice_id:
+                self.system.settings.edge_tts_voice = pack.voice_id
             self.system.settings.save(self.system.data_dir)
 
         if hasattr(self.system, "steam") and self.system.steam is not None:
@@ -561,20 +563,11 @@ class EphemeralOnboardingServer:
             except Exception:
                 pass
 
-        # 2. Reset Voice Engine HTTP client so new Fish / Gemini / ElevenLabs keys apply immediately
-        if hasattr(self.system, "voice") and self.system.voice is not None:
-            try:
-                if hasattr(self.system.voice, "close"):
-                    await self.system.voice.close()
-                self.system.voice._client = None
-            except Exception:
-                pass
-
-        # 3. Refresh Identity user profile and settings
+        # 2. Refresh Identity user profile and settings
         if hasattr(self.system, "identity") and self.system.identity is not None:
             self.system.identity.settings = self.system.settings
 
-        # 4. Broadcast live reload notification to all UI clients
+        # 3. Broadcast live reload notification to all UI clients
         if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
             try:
                 await self.system.ws_bridge.broadcast(
@@ -585,6 +578,9 @@ class EphemeralOnboardingServer:
                             "dsp_preset": self.system.settings.dsp_preset,
                             "voice_engine": self.system.settings.voice_engine,
                             "user_display_name": self.system.settings.user_display_name,
+                            "edge_tts_voice": getattr(self.system.settings, "edge_tts_voice", "es-MX-DaliaNeural"),
+                            "edge_tts_rate": getattr(self.system.settings, "edge_tts_rate", "+0%"),
+                            "edge_tts_pitch": getattr(self.system.settings, "edge_tts_pitch", "+0Hz"),
                             "cloud_vision_consent": self.system.settings.cloud_vision_consent,
                             "cloud_stt_consent": self.system.settings.cloud_stt_consent,
                             "bubbles_mode": self.system.settings.bubbles_mode,
@@ -773,6 +769,9 @@ class EphemeralOnboardingServer:
                 "active_brain": self.system.settings.active_brain,
                 "user_display_name": self.system.settings.user_display_name,
                 "voice_engine": self.system.settings.voice_engine,
+                "edge_tts_voice": getattr(self.system.settings, "edge_tts_voice", "es-MX-DaliaNeural"),
+                "edge_tts_rate": getattr(self.system.settings, "edge_tts_rate", "+0%"),
+                "edge_tts_pitch": getattr(self.system.settings, "edge_tts_pitch", "+0Hz"),
                 "dsp_preset": self.system.settings.dsp_preset,
                 "cloud_vision_consent": self.system.settings.cloud_vision_consent,
                 "cloud_stt_consent": self.system.settings.cloud_stt_consent,
@@ -962,6 +961,42 @@ class EphemeralOnboardingServer:
                 json.dumps({"status": "deleted" if deleted else "not_found"}).encode("utf-8"),
             )
 
+        if method == "POST" and path == "/api/character/update":
+            target_id = str(data.get("id") or "").strip()
+            if not target_id:
+                return "400 Bad Request", "application/json", b'{"error":"missing_character_id"}'
+            mgr = self.system.profiles.character_manager
+            pack = mgr.update_character(target_id, data)
+
+            # If updated character is the active one, refresh running system state immediately
+            if self.system.profiles.get_active_character_id() == pack.id:
+                if hasattr(self.system, "identity") and self.system.identity is not None:
+                    self.system.identity.set_active_character(pack)
+                if hasattr(self.system, "settings") and self.system.settings is not None:
+                    self.system.settings.active_profile = pack.id
+                    self.system.settings.dsp_preset = pack.dsp_preset
+                    self.system.settings.voice_engine = pack.voice_engine
+                    if pack.voice_id:
+                        self.system.settings.edge_tts_voice = pack.voice_id
+                    self.system.settings.save(self.system.data_dir)
+
+                if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+                    await self.system.ws_bridge.broadcast({
+                        "type": "character_switched",
+                        "character": pack.to_dict(),
+                    })
+                    await self.system.ws_bridge.broadcast({
+                        "type": "dsp_changed",
+                        "dsp_preset": self.system.settings.dsp_preset,
+                        "bubbles_mode": self.system.settings.bubbles_mode,
+                    })
+
+            return (
+                "200 OK",
+                "application/json",
+                json.dumps({"status": "updated", "character": pack.to_dict()}, ensure_ascii=False).encode("utf-8"),
+            )
+
         if method == "POST" and path == "/api/apps/configure":
             app_id = str(data.get("id") or "").strip().lower()
             if not app_id:
@@ -1109,6 +1144,9 @@ class EphemeralOnboardingServer:
                 "openrouter_api_key",
                 "honcho_api_key",
                 "voice_engine",
+                "edge_tts_voice",
+                "edge_tts_rate",
+                "edge_tts_pitch",
                 "qwen3_speaker",
                 "dsp_preset",
                 "fish_audio_api_key",

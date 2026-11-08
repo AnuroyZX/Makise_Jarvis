@@ -369,24 +369,50 @@ class AmadeusVoiceEngine:
         mime = "audio/ogg" if for_telegram_opus else "audio/mpeg"
         return resp.content, mime
 
-    async def _call_edge_tts(self, text: str) -> bytes:
-        """Lazy-import edge_tts per ECC Resource Efficiency Rule 1, with young anime pitch."""
+    async def _call_edge_tts(self, text: str, voice_override: Optional[str] = None) -> bytes:
+        """Lazy-import edge_tts per ECC Resource Efficiency Rule 1, with user-configured pitch and rate."""
         try:
             import edge_tts
 
+            voice_cand = voice_override or self.settings.edge_tts_voice or "es-ES-ElviraNeural"
+            rate_val = getattr(self.settings, "edge_tts_rate", "+0%") or "+0%"
+            pitch_val = getattr(self.settings, "edge_tts_pitch", "+0Hz") or "+0Hz"
+
             communicate = edge_tts.Communicate(
                 text=text,
-                voice=self.settings.edge_tts_voice,
-                rate="+6%",
-                pitch="+10Hz",
+                voice=voice_cand,
+                rate=rate_val,
+                pitch=pitch_val,
             )
             chunks = bytearray()
             async for chunk in communicate.stream():
                 if chunk.get("type") == "audio" and chunk.get("data"):
                     chunks.extend(chunk["data"])
-            return bytes(chunks)
+            res = bytes(chunks)
+            if res:
+                return res
         except Exception:
-            return b""
+            pass
+
+        # Resilient fallback: Try default voices if custom voice fails or returns empty
+        for fallback_voice in ("es-ES-ElviraNeural", "es-MX-DaliaNeural", "es-ES-AlvaroNeural"):
+            if voice_override == fallback_voice or self.settings.edge_tts_voice == fallback_voice:
+                continue
+            try:
+                import edge_tts
+
+                communicate = edge_tts.Communicate(text=text, voice=fallback_voice)
+                chunks = bytearray()
+                async for chunk in communicate.stream():
+                    if chunk.get("type") == "audio" and chunk.get("data"):
+                        chunks.extend(chunk["data"])
+                res = bytes(chunks)
+                if res:
+                    return res
+            except Exception:
+                continue
+
+        return b""
 
     def _save_audio(self, data: bytes, ext: str) -> Optional[Path]:
         if not data:

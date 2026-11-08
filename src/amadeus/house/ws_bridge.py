@@ -276,6 +276,31 @@ class AmadeusWebSocketBridge:
                 await self.broadcast({"type": "reload_vrm"})
             return
 
+        if msg_type == "update_character":
+            char_id = str(data.get("id") or "")
+            if char_id and hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
+                pack = self.system.profiles.update_character(char_id, data)
+                if self.system.profiles.get_active_character_id() == pack.id:
+                    if hasattr(self.system, "identity"):
+                        self.system.identity.set_active_character(pack)
+                    if hasattr(self.system, "settings"):
+                        self.system.settings.active_profile = pack.id
+                        self.system.settings.dsp_preset = pack.dsp_preset
+                        self.system.settings.voice_engine = pack.voice_engine
+                        if pack.voice_id:
+                            self.system.settings.edge_tts_voice = pack.voice_id
+                        self.system.settings.save(self.system.data_dir)
+                    await self.broadcast({"type": "character_switched", "character": pack.to_dict()})
+                    await self.broadcast({"type": "dsp_changed", "dsp_preset": self.system.settings.dsp_preset})
+                chars = [c.to_dict() for c in self.system.profiles.character_manager.list_characters()]
+                active_id = self.system.profiles.character_manager.get_active_character_id()
+                await self.broadcast({
+                    "type": "characters_list",
+                    "characters": chars,
+                    "active_id": active_id,
+                })
+            return
+
         if msg_type == "get_characters":
             if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
                 chars = [c.to_dict() for c in self.system.profiles.character_manager.list_characters()]
@@ -495,17 +520,26 @@ class AmadeusWebSocketBridge:
                     synth = await self.system.voice.synthesize(
                         sent, for_telegram_opus=False, save_to_disk=False
                     )
-                    b64 = (
-                        base64.b64encode(synth.audio_bytes).decode("ascii")
-                        if synth.audio_bytes
-                        else ""
-                    )
-                    return b64, synth.mime_type, synth.provider
+                    if synth.audio_bytes:
+                        b64 = base64.b64encode(synth.audio_bytes).decode("ascii")
+                        return b64, synth.mime_type, synth.provider
                 except Exception as exc:
                     logging.getLogger("amadeus.ws_bridge").debug(
-                        "Voice synth error for '%s': %s", sent[:20], exc
+                        "Primary voice synth error for '%s': %s", sent[:20], exc
                     )
-                    return "", "audio/mpeg", "fallback"
+
+                # Bulletproof fallback: emergency Edge-TTS synthesis so voice is never lost
+                try:
+                    emergency_audio = await self.system.voice._call_edge_tts(sent)
+                    if emergency_audio:
+                        b64 = base64.b64encode(emergency_audio).decode("ascii")
+                        return b64, "audio/mpeg", "edge_tts_fallback"
+                except Exception as exc:
+                    logging.getLogger("amadeus.ws_bridge").warning(
+                        "Emergency voice fallback failed for '%s': %s", sent[:20], exc
+                    )
+
+                return "", "audio/mpeg", "silent"
 
             synth_tasks = [_synth_sentence(s) for s in sentences]
             synth_results = await asyncio.gather(*synth_tasks, return_exceptions=True)
