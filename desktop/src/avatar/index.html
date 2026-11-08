@@ -361,6 +361,48 @@ dirLight.position.set(1.2, 2.2, 2.0);
 scene.add(dirLight);
 scene.add(new THREE.AmbientLight(0xdbeafe, 1.35));
 
+// Gaze Tracking & Saccades Target Object
+const lookAtTarget = new THREE.Object3D();
+lookAtTarget.position.set(0.0, 1.32, 1.62);
+scene.add(lookAtTarget);
+
+let mouseNormX = 0;
+let mouseNormY = 0;
+window.addEventListener('mousemove', (e) => {
+  mouseNormX = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseNormY = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+
+let nextSaccadeTime = 1.0;
+const saccadeOffset = new THREE.Vector3(0, 0, 0);
+
+// Continuous Smooth Emotion Weights (LERP)
+const emotionWeights = {
+  neutral: 1.0,
+  happy: 0.0,
+  angry: 0.0,
+  sad: 0.0,
+  relaxed: 0.0,
+  surprised: 0.0,
+};
+const targetEmotionWeights = {
+  neutral: 1.0,
+  happy: 0.0,
+  angry: 0.0,
+  sad: 0.0,
+  relaxed: 0.0,
+  surprised: 0.0,
+};
+
+// Gesture Blending & Inertia
+let currentGesture = 'idle';
+let gestureTimer = 0;
+let gestureBlend = 0.0;
+
+// Formant Viseme Attack & Release States
+const currentVisemes = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+const targetVisemes = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+
 const loader = new GLTFLoader();
 loader.register((parser) => new VRMLoaderPlugin(parser));
 loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
@@ -386,6 +428,13 @@ function loadVrmModel(url) {
       // Full head + upper body framing with zero obstruction above her head
       camera.position.set(0.0, height * 0.83, 1.62);
       camera.lookAt(0.0, height * 0.81, 0.0);
+      lookAtTarget.position.set(0.0, height * 0.82, 1.62);
+
+      if (vrm.lookAt) {
+        vrm.lookAt.target = lookAtTarget;
+        vrm.lookAt.autoUpdate = false;
+      }
+
       mixer = new THREE.AnimationMixer(vrm.scene);
       applyEmotion(currentEmotion);
       spawnLateralDialog("Sistema Amadeus en línea. ¿En qué trabajamos hoy?", 3200);
@@ -400,22 +449,34 @@ function loadVrmModel(url) {
 
 function applyEmotion(emotion) {
   currentEmotion = emotion || 'neutral';
-  if (!currentVrm || !currentVrm.expressionManager) return;
-  const em = currentVrm.expressionManager;
-  for (const preset of ['neutral', 'happy', 'angry', 'sad', 'relaxed', 'surprised']) {
-    em.setValue(preset, 0.0);
+  for (const k in targetEmotionWeights) targetEmotionWeights[k] = 0.0;
+
+  if (currentEmotion === 'smug') {
+    targetEmotionWeights.happy = 0.75;
+    targetEmotionWeights.relaxed = 0.25;
+  } else if (currentEmotion === 'tsundere_blush') {
+    targetEmotionWeights.angry = 0.45;
+    targetEmotionWeights.relaxed = 0.35;
+    targetEmotionWeights.surprised = 0.15;
+  } else if (currentEmotion === 'analytical') {
+    targetEmotionWeights.relaxed = 0.65;
+    targetEmotionWeights.neutral = 0.25;
+  } else if (currentEmotion === 'serious') {
+    targetEmotionWeights.angry = 0.7;
+    targetEmotionWeights.neutral = 0.2;
+  } else if (currentEmotion === 'surprised') {
+    targetEmotionWeights.surprised = 0.9;
+    targetEmotionWeights.happy = 0.1;
+  } else if (currentEmotion === 'happy') {
+    targetEmotionWeights.happy = 0.95;
+  } else {
+    targetEmotionWeights.neutral = 1.0;
   }
-  if (currentEmotion === 'smug') em.setValue('happy', 0.85);
-  else if (currentEmotion === 'tsundere_blush') { em.setValue('angry', 0.45); em.setValue('relaxed', 0.4); }
-  else if (currentEmotion === 'analytical') em.setValue('relaxed', 0.65);
-  else if (currentEmotion === 'serious') em.setValue('angry', 0.75);
-  else if (currentEmotion === 'surprised') em.setValue('surprised', 0.9);
-  else em.setValue('neutral', 1.0);
 }
 
 function triggerGesture(gestureName) {
   currentGesture = gestureName || 'idle';
-  gestureTimer = 2.4;
+  gestureTimer = 2.6;
 }
 
 const clock = new THREE.Clock();
@@ -434,83 +495,179 @@ function animate() {
     const em = currentVrm.expressionManager;
 
     const spine = hum?.getNormalizedBoneNode('spine');
+    const chest = hum?.getNormalizedBoneNode('chest') || hum?.getNormalizedBoneNode('upperChest');
     const head = hum?.getNormalizedBoneNode('head');
     const rightArm = hum?.getNormalizedBoneNode('rightUpperArm');
     const leftArm = hum?.getNormalizedBoneNode('leftUpperArm');
+    const rightShoulder = hum?.getNormalizedBoneNode('rightShoulder');
+    const leftShoulder = hum?.getNormalizedBoneNode('leftShoulder');
+
+    // 1. Natural Organic Breathing Cycle (~13.5 breaths/min = ~0.22 Hz)
+    const breathRate = 1.42;
+    const breath = Math.sin(elapsed * breathRate) * 0.75 + Math.sin(elapsed * (breathRate * 2.0)) * 0.25;
+    const breathPositive = Math.max(0, breath);
 
     if (spine) {
-      spine.rotation.x = Math.sin(elapsed * 2.1) * 0.018;
-      spine.rotation.z = Math.cos(elapsed * 1.1) * 0.012;
+      spine.rotation.x = breath * 0.014;
+      spine.rotation.z = Math.sin(elapsed * 0.75) * 0.008; // subtle organic weight shift
+    }
+    if (chest) {
+      chest.rotation.x = breath * 0.018; // ribcage breathing expansion
+    }
+    if (rightShoulder) rightShoulder.rotation.z = -breathPositive * 0.012;
+    if (leftShoulder) leftShoulder.rotation.z = breathPositive * 0.012;
+
+    // 2. Smooth Gesture Blending (Attack & Release)
+    if (gestureTimer > 0) {
+      gestureTimer -= delta;
+      gestureBlend = Math.min(1.0, gestureBlend + delta * 5.0);
+    } else {
+      gestureBlend = Math.max(0.0, gestureBlend - delta * 3.5);
+      if (gestureBlend <= 0.0) currentGesture = 'idle';
     }
 
     const armSign = -1;
+    let rArmZ = armSign * 1.18 + Math.sin(elapsed * 1.5) * 0.015;
+    let rArmX = 0.06;
+    let lArmZ = -armSign * 1.18 - Math.sin(elapsed * 1.5) * 0.015;
+    let lArmX = 0.06;
+
+    let headTargetX = 0;
+    let headTargetZ = 0;
+
+    if (gestureBlend > 0.001) {
+      if (currentGesture === 'wave') {
+        const waveAngle = -armSign * 0.85 + Math.sin(elapsed * 12.0) * 0.28;
+        rArmZ = THREE.MathUtils.lerp(rArmZ, waveAngle, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, -0.2, gestureBlend);
+        headTargetZ = THREE.MathUtils.lerp(headTargetZ, 0.08, gestureBlend);
+      } else if (currentGesture === 'nod') {
+        headTargetX = THREE.MathUtils.lerp(headTargetX, Math.sin(elapsed * 9.0) * 0.16, gestureBlend);
+      } else if (currentGesture === 'think') {
+        headTargetZ = THREE.MathUtils.lerp(headTargetZ, 0.14, gestureBlend);
+        headTargetX = THREE.MathUtils.lerp(headTargetX, 0.08, gestureBlend);
+        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.45, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, 0.65, gestureBlend);
+      } else if (currentGesture === 'point') {
+        rArmX = THREE.MathUtils.lerp(rArmX, -0.85, gestureBlend);
+        rArmZ = THREE.MathUtils.lerp(rArmZ, -armSign * 0.35, gestureBlend);
+      } else if (currentGesture === 'cross_arms') {
+        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.65, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, 0.45, gestureBlend);
+        lArmZ = THREE.MathUtils.lerp(lArmZ, -armSign * 0.65, gestureBlend);
+        lArmX = THREE.MathUtils.lerp(lArmX, 0.45, gestureBlend);
+        headTargetZ = THREE.MathUtils.lerp(headTargetZ, -0.06, gestureBlend);
+      }
+    }
+
     if (rightArm) {
-      rightArm.rotation.z = armSign * 1.18 + Math.sin(elapsed * 1.5) * 0.02;
-      rightArm.rotation.x = 0.06;
+      rightArm.rotation.z = rArmZ;
+      rightArm.rotation.x = rArmX;
     }
     if (leftArm) {
-      leftArm.rotation.z = -armSign * 1.18 - Math.sin(elapsed * 1.5) * 0.02;
-      leftArm.rotation.x = 0.06;
+      leftArm.rotation.z = lArmZ;
+      leftArm.rotation.x = lArmX;
+    }
+    if (head) {
+      head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, headTargetX, Math.min(1.0, delta * 6.0));
+      head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, headTargetZ, Math.min(1.0, delta * 6.0));
     }
 
-    if (gestureTimer > 0) {
-      gestureTimer -= delta;
-      if (head) {
-        if (currentGesture === 'nod') head.rotation.x = Math.sin(elapsed * 10.0) * 0.18;
-        else if (currentGesture === 'think') head.rotation.z = 0.14;
-      }
-      if (rightArm) {
-        if (currentGesture === 'wave') {
-          rightArm.rotation.z = -armSign * 0.85 + Math.sin(elapsed * 12.0) * 0.25;
-        } else if (currentGesture === 'point') {
-          rightArm.rotation.x = -0.85;
-        } else if (currentGesture === 'cross_arms') {
-          rightArm.rotation.z = armSign * 0.65;
-          rightArm.rotation.x = 0.45;
-        }
-      }
-      if (leftArm && currentGesture === 'cross_arms') {
-        leftArm.rotation.z = -armSign * 0.65;
-        leftArm.rotation.x = 0.45;
-      }
-    } else if (head) {
-      head.rotation.x *= 0.9;
-      head.rotation.z *= 0.9;
+    // 3. Gaze Tracking with Eye Microsaccades
+    if (elapsed >= nextSaccadeTime) {
+      nextSaccadeTime = elapsed + 0.8 + Math.random() * 1.5;
+      saccadeOffset.set(
+        (Math.random() - 0.5) * 0.07,
+        (Math.random() - 0.5) * 0.05,
+        0
+      );
     }
 
+    if (currentVrm.lookAt) {
+      const headBone = hum?.getNormalizedBoneNode('head');
+      const headWorldPos = new THREE.Vector3();
+      if (headBone) headBone.getWorldPosition(headWorldPos);
+      else headWorldPos.set(0, 1.35, 0);
+
+      const desiredLookAt = new THREE.Vector3(
+        headWorldPos.x + mouseNormX * 0.35 + saccadeOffset.x,
+        headWorldPos.y + mouseNormY * 0.25 + saccadeOffset.y,
+        headWorldPos.z + 1.6
+      );
+
+      lookAtTarget.position.lerp(desiredLookAt, Math.min(1.0, delta * 7.0));
+      currentVrm.lookAt.update(delta);
+    }
+
+    // 4. Smooth Expression Morphing (LERP) & Natural Blinking
     if (em) {
+      for (const key in emotionWeights) {
+        emotionWeights[key] += (targetEmotionWeights[key] - emotionWeights[key]) * Math.min(1.0, delta * 6.5);
+        em.setValue(key, emotionWeights[key]);
+      }
+
       if (elapsed >= nextBlinkTime) {
         blinkProgress = 0.0;
-        nextBlinkTime = elapsed + 2.5 + Math.random() * 3.5;
+        nextBlinkTime = elapsed + 2.4 + Math.random() * 3.6;
       }
       if (blinkProgress >= 0.0) {
-        blinkProgress += delta * 9.0;
+        blinkProgress += delta * 9.5;
         const blinkVal = blinkProgress <= 1.0 ? blinkProgress : Math.max(0.0, 2.0 - blinkProgress);
         em.setValue('blink', blinkVal);
         if (blinkProgress >= 2.0) blinkProgress = -1;
       }
 
+      // 5. Acoustic Formant-Based Viseme Lip-Sync (F1 & F2 WebAudio Analysis)
       if (isPlayingQueue) {
-        let low = 0, mid = 0, high = 0;
+        const bandEnergy = (bStart, bEnd) => {
+          let s = 0;
+          for (let i = bStart; i <= bEnd && i < freqData.length; i++) s += freqData[i];
+          return s / ((bEnd - bStart + 1) * 255);
+        };
+
         if (analyser && freqData) {
           analyser.getByteFrequencyData(freqData);
-          for (let i = 1; i < 8; i++) low += freqData[i];
-          for (let i = 8; i < 24; i++) mid += freqData[i];
-          for (let i = 24; i < 48; i++) high += freqData[i];
-        }
-        if (low + mid + high > 10) {
-          em.setValue('aa', Math.min(1.0, (low / (7 * 200))));
-          em.setValue('ih', Math.min(0.8, (high / (24 * 210))));
-          em.setValue('ou', Math.min(0.7, (mid / (16 * 220))));
+          const lowF1 = bandEnergy(1, 3);     // 200 - 560 Hz
+          const midF1 = bandEnergy(4, 7);     // 560 - 1300 Hz
+          const midHighF2 = bandEnergy(8, 12); // 1300 - 2250 Hz
+          const highF2 = bandEnergy(13, 20);   // 2250 - 3750 Hz
+          const speechEnergy = (lowF1 + midF1 + midHighF2 + highF2) / 4;
+
+          if (speechEnergy > 0.035) {
+            targetVisemes.aa = Math.min(1.0, Math.max(0, (midF1 - 0.04) * 3.0));
+            targetVisemes.ih = Math.min(0.85, Math.max(0, (highF2 - 0.03) * 3.2));
+            targetVisemes.ou = Math.min(0.8, Math.max(0, (lowF1 - 0.04) * 2.5));
+            targetVisemes.ee = Math.min(0.75, Math.max(0, (midHighF2 - 0.03) * 2.6));
+            targetVisemes.oh = Math.min(0.75, Math.max(0, (lowF1 * 0.6 + midF1 * 0.4 - 0.04) * 2.4));
+          } else {
+            targetVisemes.aa = 0;
+            targetVisemes.ih = 0;
+            targetVisemes.ou = 0;
+            targetVisemes.ee = 0;
+            targetVisemes.oh = 0;
+          }
         } else {
-          em.setValue('aa', Math.max(0.0, Math.sin(elapsed * 16.0) * 0.65));
-          em.setValue('ih', Math.max(0.0, Math.cos(elapsed * 11.0) * 0.35));
-          em.setValue('ou', Math.max(0.0, Math.sin(elapsed * 7.5) * 0.30));
+          // Synthetic procedural speech wave fallback
+          targetVisemes.aa = Math.max(0, Math.sin(elapsed * 16.0) * 0.6);
+          targetVisemes.ih = Math.max(0, Math.cos(elapsed * 11.0) * 0.35);
+          targetVisemes.ou = Math.max(0, Math.sin(elapsed * 8.0) * 0.3);
         }
       } else {
-        em.setValue('aa', 0.0);
-        em.setValue('ih', 0.0);
-        em.setValue('ou', 0.0);
+        targetVisemes.aa = 0;
+        targetVisemes.ih = 0;
+        targetVisemes.ou = 0;
+        targetVisemes.ee = 0;
+        targetVisemes.oh = 0;
+      }
+
+      // Fast attack & smooth release envelope
+      const attack = delta * 24.0;
+      const release = delta * 12.0;
+      for (const v of ['aa', 'ih', 'ou', 'ee', 'oh']) {
+        const tgt = targetVisemes[v] || 0;
+        const cur = currentVisemes[v] || 0;
+        currentVisemes[v] += (tgt - cur) * (tgt > cur ? attack : release);
+        try { em.setValue(v, currentVisemes[v]); } catch (_) {}
       }
     }
 
