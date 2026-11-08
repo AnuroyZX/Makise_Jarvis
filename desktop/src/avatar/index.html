@@ -395,8 +395,6 @@ const targetEmotionWeights = {
 };
 
 // Gesture Blending & Inertia
-let currentGesture = 'idle';
-let gestureTimer = 0;
 let gestureBlend = 0.0;
 
 // Formant Viseme Attack & Release States
@@ -432,7 +430,6 @@ function loadVrmModel(url) {
 
       if (vrm.lookAt) {
         vrm.lookAt.target = lookAtTarget;
-        vrm.lookAt.autoUpdate = false;
       }
 
       mixer = new THREE.AnimationMixer(vrm.scene);
@@ -596,7 +593,6 @@ function animate() {
       );
 
       lookAtTarget.position.lerp(desiredLookAt, Math.min(1.0, delta * 7.0));
-      currentVrm.lookAt.update(delta);
     }
 
     // 4. Smooth Expression Morphing (LERP) & Natural Blinking

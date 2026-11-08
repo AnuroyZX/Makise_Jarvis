@@ -489,7 +489,23 @@ class EphemeralOnboardingServer:
 
     @property
     def vrm_file_path(self) -> Path:
-        # 1. Check active character pack's VRM
+        # 1. If an active non-default character is chosen, prioritize its character-specific VRM
+        if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
+            try:
+                active_char = self.system.profiles.character_manager.get_active_character()
+                if active_char and active_char.id != "kurisu":
+                    char_vrm = active_char.get_vrm_path()
+                    if char_vrm and char_vrm.exists():
+                        return char_vrm
+            except Exception:
+                pass
+
+        # 2. Check user-uploaded custom avatar in data_dir
+        user_vrm = self.system.data_dir / "avatar.vrm"
+        if user_vrm.exists():
+            return user_vrm
+
+        # 3. Check active character pack's VRM (e.g. default kurisu pack)
         if hasattr(self.system, "profiles") and hasattr(self.system.profiles, "character_manager"):
             try:
                 active_char = self.system.profiles.character_manager.get_active_character()
@@ -499,10 +515,7 @@ class EphemeralOnboardingServer:
             except Exception:
                 pass
 
-        # 2. Check user-uploaded global avatar.vrm
-        user_vrm = self.system.data_dir / "avatar.vrm"
-        if user_vrm.exists():
-            return user_vrm
+        # 4. Bundled fallback
         from amadeus.config import get_config_dir
 
         bundled_vrm = get_config_dir() / "avatar.vrm"
