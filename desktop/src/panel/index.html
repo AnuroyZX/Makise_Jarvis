@@ -190,25 +190,27 @@
       position: relative;
     }
 
-    /* Vertical Navigation Rail */
+    /* Vertical Navigation Rail with Geometric Ergonomics & Color Hierarchy */
     #navRail {
-      width: 72px;
-      background: rgba(10, 15, 28, 0.55);
-      border-right: 1px solid var(--border-glass-subtle);
+      width: 78px;
+      background: linear-gradient(180deg, rgba(8, 14, 28, 0.88) 0%, rgba(12, 19, 36, 0.80) 100%);
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset -1px 0 0 rgba(56, 189, 248, 0.06);
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 12px 0;
-      gap: 8px;
+      padding: 10px 0;
+      gap: 6px;
       position: relative;
-      z-index: 10;
+      z-index: 20;
+      user-select: none;
     }
 
     .nav-btn {
       position: relative;
-      width: 52px;
-      height: 52px;
-      border-radius: var(--radius-md);
+      width: 64px;
+      height: 56px;
+      border-radius: 12px;
       background: transparent;
       border: 1px solid transparent;
       color: var(--text-muted);
@@ -219,29 +221,225 @@
       gap: 3px;
       cursor: pointer;
       transition: all 0.22s var(--ease-spring);
+      outline: none;
     }
-    .nav-btn .icon {
-      font-size: 1.35rem;
-      line-height: 1;
-      transition: transform 0.2s var(--ease-spring);
+
+    .nav-btn .nav-icon-box {
+      width: 32px;
+      height: 28px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.22s var(--ease-spring);
+      position: relative;
     }
-    .nav-btn .label {
-      font-size: 0.65rem;
-      font-weight: 600;
+
+    .nav-btn .nav-label {
+      font-size: 0.63rem;
+      font-weight: 700;
       letter-spacing: -0.01em;
+      transition: color 0.2s ease;
+      color: #94a3b8;
     }
+
+    .nav-btn .nav-key-badge {
+      position: absolute;
+      top: 4px;
+      right: 5px;
+      font-size: 0.54rem;
+      font-weight: 700;
+      color: rgba(148, 163, 184, 0.45);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      transition: color 0.2s ease;
+    }
+
+    .nav-btn .nav-indicator {
+      position: absolute;
+      left: 0;
+      top: 14px;
+      bottom: 14px;
+      width: 3.5px;
+      border-radius: 0 4px 4px 0;
+      background: linear-gradient(180deg, var(--accent-cyan) 0%, var(--accent-blue) 100%);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
+      opacity: 0;
+      transform: scaleY(0.4);
+      transition: all 0.22s var(--ease-spring);
+    }
+
     .nav-btn:hover {
-      color: #bae6fd;
+      color: #f0f9ff;
       background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.08);
+      transform: translateY(-1px);
     }
-    .nav-btn:hover .icon {
-      transform: scale(1.12);
+    .nav-btn:hover .nav-icon-box {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+      transform: scale(1.08);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2);
     }
+    .nav-btn:hover .nav-label {
+      color: #bae6fd;
+    }
+    .nav-btn:hover .nav-key-badge {
+      color: var(--accent-cyan);
+    }
+
     .nav-btn.active {
       color: #fff;
-      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(37, 99, 235, 0.35) 100%);
-      border-color: rgba(56, 189, 248, 0.45);
-      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.18) 0%, rgba(37, 99, 235, 0.28) 100%);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 6px 18px rgba(2, 132, 199, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    .nav-btn.active .nav-icon-box {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.35) 0%, rgba(2, 132, 199, 0.5) 100%);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+      color: #fff;
+    }
+    .nav-btn.active .nav-label {
+      color: #ffffff;
+      font-weight: 800;
+    }
+    .nav-btn.active .nav-key-badge {
+      color: #ffffff;
+    }
+    .nav-btn.active .nav-indicator {
+      opacity: 1;
+      transform: scaleY(1);
+    }
+
+    .nav-divider {
+      width: 42px;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 4px 0;
+    }
+
+    /* Rich Extended Hover Tooltip Card */
+    #navTooltipCard {
+      position: fixed;
+      left: 88px;
+      width: 295px;
+      background: rgba(10, 16, 32, 0.95);
+      backdrop-filter: blur(28px) saturate(190%);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.72), 0 0 24px rgba(2, 132, 199, 0.22);
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0;
+      transform: translateX(-10px) scale(0.96);
+      transition: opacity 0.22s var(--ease-spring), transform 0.22s var(--ease-spring);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #navTooltipCard.visible {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+    .nt-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+    }
+    .nt-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nt-icon {
+      font-size: 1.25rem;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .nt-title {
+      font-size: 0.86rem;
+      font-weight: 800;
+      color: #f0f9ff;
+    }
+    .nt-tag {
+      font-size: 0.6rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.18);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .nt-summary {
+      font-size: 0.75rem;
+      line-height: 1.42;
+      color: #bae6fd;
+      font-weight: 500;
+    }
+    .nt-bullets {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 9px;
+      padding: 8px 10px;
+    }
+    .nt-bullet {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 0.7rem;
+      color: #cbd5e1;
+      line-height: 1.35;
+    }
+    .nt-bullet-icon {
+      color: var(--accent-cyan);
+      font-size: 0.65rem;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .nt-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 7px;
+    }
+    .nt-tip {
+      color: #fde68a;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+    }
+    .nt-shortcut {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.65rem;
+      color: #e2e8f0;
+      white-space: nowrap;
     }
 
     /* Dynamic Sub-Window Viewport with 60fps Slide Animations */
@@ -937,29 +1135,48 @@
   <div id="appBody">
     <!-- Left Navigation Rail -->
     <div id="navRail">
-      <button class="nav-btn active" id="nav-chat" onclick="switchSubwindow('chat')" title="Diálogo en vivo y chat">
-        <span class="icon">💬</span>
-        <span class="label">Chat</span>
+      <button class="nav-btn active" id="nav-chat" data-nav="chat" onclick="switchSubwindow('chat')">
+        <div class="nav-indicator"></div>
+        <span class="nav-key-badge">1</span>
+        <div class="nav-icon-box">💬</div>
+        <span class="nav-label">Diálogo</span>
       </button>
-      <button class="nav-btn" id="nav-characters" onclick="switchSubwindow('characters')" title="Galería y modding de asistentes">
-        <span class="icon">🎭</span>
-        <span class="label">Galería</span>
+
+      <button class="nav-btn" id="nav-characters" data-nav="characters" onclick="switchSubwindow('characters')">
+        <div class="nav-indicator"></div>
+        <span class="nav-key-badge">2</span>
+        <div class="nav-icon-box">🎭</div>
+        <span class="nav-label">Asistentes</span>
       </button>
-      <button class="nav-btn" id="nav-voice" onclick="switchSubwindow('voice')" title="Voice Lab: Síntesis y Personalización Vocal">
-        <span class="icon">🎙️</span>
-        <span class="label">Voice Lab</span>
+
+      <button class="nav-btn" id="nav-voice" data-nav="voice" onclick="switchSubwindow('voice')">
+        <div class="nav-indicator"></div>
+        <span class="nav-key-badge">3</span>
+        <div class="nav-icon-box">🎙️</div>
+        <span class="nav-label">Voice Lab</span>
       </button>
-      <button class="nav-btn" id="nav-apps" onclick="switchSubwindow('apps')" title="Control de aplicaciones y accesos">
-        <span class="icon">🪟</span>
-        <span class="label">Apps</span>
+
+      <button class="nav-btn" id="nav-apps" data-nav="apps" onclick="switchSubwindow('apps')">
+        <div class="nav-indicator"></div>
+        <span class="nav-key-badge">4</span>
+        <div class="nav-icon-box">🪟</div>
+        <span class="nav-label">Apps PC</span>
       </button>
-      <button class="nav-btn" id="nav-tools" onclick="switchSubwindow('tools')" title="Herramientas del sistema y archivos">
-        <span class="icon">🛠️</span>
-        <span class="label">Archivos</span>
+
+      <button class="nav-btn" id="nav-tools" data-nav="tools" onclick="switchSubwindow('tools')">
+        <div class="nav-indicator"></div>
+        <span class="nav-key-badge">5</span>
+        <div class="nav-icon-box">📁</div>
+        <span class="nav-label">Archivos</span>
       </button>
-      <button class="nav-btn" id="nav-settings" onclick="switchSubwindow('settings')" title="Cerebro, claves y Steam">
-        <span class="icon">⚙️</span>
-        <span class="label">Ajustes</span>
+
+      <div class="nav-divider"></div>
+
+      <button class="nav-btn" id="nav-settings" data-nav="settings" onclick="switchSubwindow('settings')">
+        <div class="nav-indicator"></div>
+        <span class="nav-key-badge">6</span>
+        <div class="nav-icon-box">⚙️</div>
+        <span class="nav-label">Ajustes</span>
       </button>
     </div>
 
@@ -1308,6 +1525,27 @@
     </div>
   </div>
 
+  <!-- RICH FLOATING NAV TOOLTIP CARD -->
+  <div id="navTooltipCard">
+    <div class="nt-header">
+      <div class="nt-title-row">
+        <div class="nt-icon" id="ntIcon">💬</div>
+        <div class="nt-title" id="ntTitle">Diálogo y Chat en Vivo</div>
+      </div>
+      <div class="nt-tag" id="ntTag">INTERACCIÓN</div>
+    </div>
+    <div class="nt-summary" id="ntSummary">
+      Interactúa por voz o texto con tu asistente con respuestas y lip-sync en tiempo real.
+    </div>
+    <div class="nt-bullets" id="ntBullets">
+      <!-- Dynamic bullet points -->
+    </div>
+    <div class="nt-footer">
+      <div class="nt-tip">💡 <span id="ntTipText">Tip</span></div>
+      <div class="nt-shortcut" id="ntShortcut">Ctrl+1</div>
+    </div>
+  </div>
+
   <!-- DRAWER 1 (LEFT): HISTORIAL DE SESIONES -->
   <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeAllDrawers()"></div>
   <div class="drawer drawer-left" id="drawerSessions">
@@ -1625,6 +1863,7 @@ function onWinClose() {
 
 // Sub-window navigation router
 function switchSubwindow(paneId) {
+  hideNavTooltip();
   const panes = document.querySelectorAll('.subwindow-pane');
   panes.forEach(p => p.classList.remove('active'));
   const targetPane = document.getElementById(`pane-${paneId}`);
@@ -1642,6 +1881,184 @@ function switchSubwindow(paneId) {
     loadState();
   }
 }
+
+// ==========================================
+// NAVIGATION RICH TOOLTIPS & SHORTCUTS ENGINE
+// ==========================================
+const NAV_TOOLTIP_DATA = {
+  chat: {
+    icon: '💬',
+    title: 'Diálogo y Chat en Vivo',
+    tag: 'INTERACCIÓN',
+    tagColor: '#38bdf8',
+    summary: 'Conversación directa en tiempo real por voz y texto con tu asistente activo. Incluye subtítulos y sincronización labial.',
+    bullets: [
+      'Visualiza respuestas fluidas y transcripciones en vivo',
+      'Modo manos libres con detección de voz',
+      'Acceso rápido al historial de sesiones pasadas'
+    ],
+    tip: 'Presiona Enter para enviar o activa el micrófono para hablar.',
+    shortcut: 'Ctrl+1'
+  },
+  characters: {
+    icon: '🎭',
+    title: 'Galería de Asistentes',
+    tag: 'IDENTIDAD',
+    tagColor: '#c084fc',
+    summary: 'Selecciona, personaliza o crea nuevas personalidades completas con su propia voz, comportamiento y memoria.',
+    bullets: [
+      'Alterna instantáneamente entre Kurisu, Amadeus o avatares propios',
+      'Edita la personalidad (SOUL.md) y saludos de cada agente',
+      'Asigna motores de síntesis específicos por personaje'
+    ],
+    tip: 'Haz clic en el icono ⚙️ de cualquier tarjeta para afinar su voz.',
+    shortcut: 'Ctrl+2'
+  },
+  voice: {
+    icon: '🎙️',
+    title: 'Voice Lab (Laboratorio Acústico)',
+    tag: 'SÍNTESIS VOCAL',
+    tagColor: '#f43f5e',
+    summary: 'Ajuste intuitivo de modulación vocal, timbres neurales y efectos de entorno acústico (DSP) en tiempo real.',
+    bullets: [
+      'Controles simples de velocidad (tempo) y tono (pitch)',
+      'Filtros de inmersión: Estudio limpio, Monitor CRT, Eco espectral',
+      'Probador vocal integrado con reproducción instantánea'
+    ],
+    tip: 'Los cambios se guardan automáticamente en el personaje activo.',
+    shortcut: 'Ctrl+3'
+  },
+  apps: {
+    icon: '🪟',
+    title: 'Control de Apps de Windows',
+    tag: 'CONTROL DE SISTEMA',
+    tagColor: '#34d399',
+    summary: 'Matriz visual e interactiva para autorizar y configurar qué aplicaciones de tu PC puede supervisar y abrir el asistente.',
+    bullets: [
+      'Mosaico con badges de estado (Habilitada / Restringida)',
+      'Definición de alias por voz para comandos naturales',
+      'Nivel de seguridad granular y escaneo automático de instaladas'
+    ],
+    tip: 'Toca cualquier tarjeta de app para configurar sus permisos.',
+    shortcut: 'Ctrl+4'
+  },
+  tools: {
+    icon: '📁',
+    title: 'Herramientas y Archivos',
+    tag: 'AUTOMATIZACIÓN',
+    tagColor: '#fbbf24',
+    summary: 'Espacio de trabajo seguro para crear notas, gestionar carpetas del escritorio e inspeccionar el registro de acciones.',
+    bullets: [
+      'Creación asistida de archivos de texto y notas rápidas',
+      'Gestión de directorios protegida por sandbox de seguridad',
+      'Auditoría visual de comandos ejecutados en el sistema'
+    ],
+    tip: 'Las acciones delicadas requieren tu confirmación previa.',
+    shortcut: 'Ctrl+5'
+  },
+  settings: {
+    icon: '⚙️',
+    title: 'Ajustes del Sistema',
+    tag: 'CONFIGURACIÓN',
+    tagColor: '#94a3b8',
+    summary: 'Panel maestro de configuración: motor cognitivo LLM, claves de API, memoria a largo plazo y calibración general.',
+    bullets: [
+      'Selector de cerebro: Gratuito Local, Gemini, Claude u OpenAI',
+      'Edición del perfil personal (USER.md) para memoria contextual',
+      'Recarga en caliente de configuraciones sin reiniciar la app'
+    ],
+    tip: 'Al guardar, los cambios se aplican de inmediato en caliente.',
+    shortcut: 'Ctrl+6'
+  }
+};
+
+let navTooltipTimer = null;
+
+function setupNavTooltips() {
+  const btns = document.querySelectorAll('.nav-btn[data-nav]');
+  btns.forEach(btn => {
+    const navKey = btn.getAttribute('data-nav');
+    btn.addEventListener('mouseenter', () => {
+      clearTimeout(navTooltipTimer);
+      navTooltipTimer = setTimeout(() => {
+        showNavTooltip(btn, navKey);
+      }, 450);
+    });
+    btn.addEventListener('mouseleave', () => {
+      clearTimeout(navTooltipTimer);
+      hideNavTooltip();
+    });
+    btn.addEventListener('click', () => {
+      clearTimeout(navTooltipTimer);
+      hideNavTooltip();
+    });
+  });
+}
+
+function showNavTooltip(btn, navKey) {
+  const data = NAV_TOOLTIP_DATA[navKey];
+  const card = document.getElementById('navTooltipCard');
+  if (!data || !card) return;
+
+  document.getElementById('ntIcon').textContent = data.icon;
+  document.getElementById('ntTitle').textContent = data.title;
+  const tagEl = document.getElementById('ntTag');
+  tagEl.textContent = data.tag;
+  if (data.tagColor) {
+    tagEl.style.color = data.tagColor;
+    tagEl.style.borderColor = `${data.tagColor}55`;
+    tagEl.style.background = `${data.tagColor}22`;
+  }
+  document.getElementById('ntSummary').textContent = data.summary;
+
+  const bulletsContainer = document.getElementById('ntBullets');
+  bulletsContainer.innerHTML = '';
+  data.bullets.forEach(b => {
+    const item = document.createElement('div');
+    item.className = 'nt-bullet';
+    item.innerHTML = `<span class="nt-bullet-icon">✦</span><span>${b}</span>`;
+    bulletsContainer.appendChild(item);
+  });
+
+  document.getElementById('ntTipText').textContent = data.tip;
+  document.getElementById('ntShortcut').textContent = data.shortcut;
+
+  // Clamped positioning to avoid clipping viewport edges
+  const rect = btn.getBoundingClientRect();
+  const left = rect.right + 12;
+  const cardHeight = 260;
+  let top = rect.top + (rect.height / 2) - 40;
+  if (top < 12) top = 12;
+  if (top + cardHeight > window.innerHeight - 12) {
+    top = Math.max(12, window.innerHeight - cardHeight - 12);
+  }
+
+  card.style.left = `${left}px`;
+  card.style.top = `${top}px`;
+  card.classList.add('visible');
+}
+
+function hideNavTooltip() {
+  const card = document.getElementById('navTooltipCard');
+  if (card) card.classList.remove('visible');
+}
+
+// Global Keyboard Navigation (Ctrl+1 to Ctrl+6)
+window.addEventListener('keydown', (e) => {
+  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+  if (activeTag === 'input' || activeTag === 'textarea' || (document.activeElement && document.activeElement.isContentEditable)) {
+    return;
+  }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '6') {
+    const panes = ['chat', 'characters', 'voice', 'apps', 'tools', 'settings'];
+    const idx = parseInt(e.key, 10) - 1;
+    if (panes[idx]) {
+      e.preventDefault();
+      switchSubwindow(panes[idx]);
+      hideNavTooltip();
+    }
+  }
+});
 
 // Drawers (Off-canvas) controls
 function openDrawer(drawerId) {
@@ -2484,6 +2901,7 @@ async function initPanel() {
   loadCharacters();
   loadSteamStatus();
   loadApps();
+  setupNavTooltips();
 }
 
 // ==========================================
@@ -2780,6 +3198,7 @@ function onAppsSearch() {
   renderAppsGrid();
 }
 
+setupNavTooltips();
 initPanel();
 </script>
 </body>
