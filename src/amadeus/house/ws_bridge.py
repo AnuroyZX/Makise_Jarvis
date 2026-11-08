@@ -448,9 +448,23 @@ class AmadeusWebSocketBridge:
             pass
         except Exception as exc:
             logging.getLogger("amadeus.ws_bridge").warning("Turn %s error: %s", turn_id, exc)
+            if not self._cancel_current_turn and self._current_turn_id == turn_id:
+                try:
+                    fallback_text = (
+                        "Lo siento, ocurrió un error temporal al procesar esa instrucción. "
+                        "Por favor intenta de nuevo."
+                    )
+                    await self._stream_dual_reply_text(
+                        fallback_text,
+                        default_emotion="serious",
+                        turn_id=turn_id,
+                    )
+                except Exception:
+                    pass
         finally:
             if self._current_turn_id == turn_id:
                 self._current_turn_id = None
+                await self.broadcast({"type": "listening", "state": "idle", "turn_id": turn_id})
 
     async def _stream_dual_reply_text(
         self,
@@ -464,65 +478,97 @@ class AmadeusWebSocketBridge:
             dual.emotion.value if dual.emotion.value != "neutral" else default_emotion
         )
 
-        # 1. Split spoken response into sentences and synthesize + stream sequentially (Open-LLM-VTuber queue)
         sentences = dual.split_spoken_sentences()
+        if not sentences:
+            sentences = [raw_reply_text.strip() or "..."]
+
+        # 1. Synthesize ALL sentences upfront concurrently with asyncio.gather.
+        # This guarantees:
+        # a) Max throughput (all sentences synthesized in parallel).
+        # b) Zero latency or pauses between sentences during avatar playback.
+        # c) The bot never starts speaking until the entire dialogue queue is 100% generated.
+        chunks_to_send: List[Dict[str, Any]] = []
+
+        if self.system.settings.voice_replies_enabled:
+            async def _synth_sentence(sent: str) -> Tuple[str, str, str]:
+                try:
+                    synth = await self.system.voice.synthesize(
+                        sent, for_telegram_opus=False, save_to_disk=False
+                    )
+                    b64 = (
+                        base64.b64encode(synth.audio_bytes).decode("ascii")
+                        if synth.audio_bytes
+                        else ""
+                    )
+                    return b64, synth.mime_type, synth.provider
+                except Exception as exc:
+                    logging.getLogger("amadeus.ws_bridge").debug(
+                        "Voice synth error for '%s': %s", sent[:20], exc
+                    )
+                    return "", "audio/mpeg", "fallback"
+
+            synth_tasks = [_synth_sentence(s) for s in sentences]
+            synth_results = await asyncio.gather(*synth_tasks, return_exceptions=True)
+
+            for idx, (sentence, res) in enumerate(zip(sentences, synth_results)):
+                if isinstance(res, Exception):
+                    audio_b64, mime, provider = "", "audio/mpeg", "error"
+                else:
+                    audio_b64, mime, provider = res
+
+                chunks_to_send.append(
+                    {
+                        "type": "reply_chunk",
+                        "turn_id": turn_id,
+                        "index": idx,
+                        "total": len(sentences),
+                        "sentence": sentence,
+                        "emotion": emotion_str,
+                        "gesture": dual.gesture if idx == 0 else "idle",
+                        "audio_b64": audio_b64,
+                        "mime": mime,
+                        "provider": provider,
+                    }
+                )
+        else:
+            for idx, sentence in enumerate(sentences):
+                chunks_to_send.append(
+                    {
+                        "type": "reply_chunk",
+                        "turn_id": turn_id,
+                        "index": idx,
+                        "total": len(sentences),
+                        "sentence": sentence,
+                        "emotion": emotion_str,
+                        "gesture": dual.gesture if idx == 0 else "idle",
+                        "audio_b64": "",
+                        "mime": "audio/mpeg",
+                        "provider": "disabled",
+                    }
+                )
+
+        if self._cancel_current_turn or self._current_turn_id != turn_id:
+            return
+
+        # 2. Transition state to 'speaking' now that ALL chunks are fully prepared
         await self.broadcast({"type": "listening", "state": "speaking", "turn_id": turn_id})
 
-        prefetch_task: Optional[asyncio.Task] = None
-        for idx, sentence in enumerate(sentences):
+        # 3. Broadcast all generated chunks
+        for chunk in chunks_to_send:
             if self._cancel_current_turn or self._current_turn_id != turn_id:
-                if prefetch_task is not None and not prefetch_task.done():
-                    prefetch_task.cancel()
                 break
+            await self.broadcast(chunk)
 
-            audio_b64 = ""
-            mime = "audio/mpeg"
-            voice_provider = "disabled"
-            if self.system.settings.voice_replies_enabled:
-                if prefetch_task is not None:
-                    synth = await prefetch_task
-                else:
-                    synth = await self.system.voice.synthesize(
-                        sentence, for_telegram_opus=False, save_to_disk=False
-                    )
+        # 4. Notify completion of chunk generation for this turn
+        await self.broadcast(
+            {
+                "type": "turn_complete",
+                "turn_id": turn_id,
+                "total": len(sentences),
+            }
+        )
 
-                # Prefetch next sentence TTS concurrently to eliminate latency between phrases
-                if idx + 1 < len(sentences) and not self._cancel_current_turn:
-                    next_sent = sentences[idx + 1]
-                    prefetch_task = asyncio.create_task(
-                        self.system.voice.synthesize(
-                            next_sent, for_telegram_opus=False, save_to_disk=False
-                        )
-                    )
-                else:
-                    prefetch_task = None
-
-                voice_provider = synth.provider
-                if synth.audio_bytes:
-                    audio_b64 = base64.b64encode(synth.audio_bytes).decode("ascii")
-                    mime = synth.mime_type
-
-            if self._cancel_current_turn or self._current_turn_id != turn_id:
-                if prefetch_task is not None and not prefetch_task.done():
-                    prefetch_task.cancel()
-                break
-
-            await self.broadcast(
-                {
-                    "type": "reply_chunk",
-                    "turn_id": turn_id,
-                    "index": idx,
-                    "total": len(sentences),
-                    "sentence": sentence,
-                    "emotion": emotion_str,
-                    "gesture": dual.gesture if idx == 0 else "idle",
-                    "audio_b64": audio_b64,
-                    "mime": mime,
-                    "provider": voice_provider,
-                }
-            )
-
-        # 2. If there is a detailed written section, push it AFTER spoken chunks so bubbles stay in strict order
+        # 5. Broadcast detailed technical section if present
         if dual.detail and not self._cancel_current_turn and self._current_turn_id == turn_id:
             await self.broadcast(
                 {

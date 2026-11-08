@@ -1894,6 +1894,24 @@ async function saveUserMd() {
   showToast('Memoria Guardada', 'Perfil USER.md actualizado', 'success');
 }
 
+let panelTurnBuffers = new Map();
+
+function flushPanelTurn(tid) {
+  const turn = panelTurnBuffers.get(tid);
+  if (!turn) return;
+  panelTurnBuffers.delete(tid);
+  if (turn.timer) clearTimeout(turn.timer);
+  turn.chunks.sort((a, b) => a.index - b.index);
+  const combined = turn.chunks.map(c => c.sentence).join(' ');
+  const first = turn.chunks[0];
+  const provTag = first && first.provider ? ` · 🔊 ${first.provider}` : '';
+  const activeObj = currentCharacters.find(c => c.id === activeCharacterId);
+  const name = activeObj ? activeObj.name : 'Amadeus';
+  appendChat('msg-kurisu', `${name} [${first ? first.emotion : 'neutral'}${provTag}]`, combined);
+  const vBtn = document.getElementById('testVoiceBtn');
+  if (vBtn) vBtn.textContent = '🔊 Probar Voz en el Avatar 3D';
+}
+
 // Master Initialization
 async function initPanel() {
   if (window.amadeusDesktop) {
@@ -1904,17 +1922,39 @@ async function initPanel() {
     }
     baseUrl = info.httpUrl;
     amadeusToken = info.wsToken || '';
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+
+    function connectPanelWs() {
       ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
+
+      ws.onclose = () => {
+        console.warn("Panel WebSocket closed. Reconnecting in 1.5s...");
+        setTimeout(connectPanelWs, 1500);
+      };
+
+      ws.onerror = (err) => {
+        console.warn("Panel WebSocket error:", err);
+      };
+
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data);
         if (msg.type === 'reply_chunk') {
-          const provTag = msg.provider ? ` · 🔊 ${msg.provider}` : '';
-          const activeObj = currentCharacters.find(c => c.id === activeCharacterId);
-          const name = activeObj ? activeObj.name : 'Amadeus';
-          appendChat('msg-kurisu', `${name} [${msg.emotion}${provTag}]`, msg.sentence);
-          const vBtn = document.getElementById('testVoiceBtn');
-          if (vBtn) vBtn.textContent = '🔊 Probar Voz en el Avatar 3D';
+          const tid = msg.turn_id || 'default';
+          if (!panelTurnBuffers.has(tid)) {
+            panelTurnBuffers.set(tid, {
+              chunks: [],
+              total: msg.total || 1,
+              timer: setTimeout(() => flushPanelTurn(tid), 4000)
+            });
+          }
+          const turn = panelTurnBuffers.get(tid);
+          turn.chunks.push(msg);
+          if (msg.total) turn.total = msg.total;
+          if (turn.chunks.length >= turn.total) {
+            flushPanelTurn(tid);
+          }
+        } else if (msg.type === 'turn_complete') {
+          const tid = msg.turn_id || 'default';
+          flushPanelTurn(tid);
         } else if (msg.type === 'reply_detail' && msg.detail) {
           appendChat('msg-kurisu', 'Detalle Técnico', msg.detail);
         } else if (msg.type === 'mic_transcript') {
@@ -1978,6 +2018,13 @@ async function initPanel() {
             loadCharacters();
             loadSteamStatus();
           }
+        }
+      };
+    }
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connectPanelWs();
+    }
         } else if (msg.type === 'characters_list') {
           if (msg.characters) {
             renderCharactersGrid(msg.characters, msg.active_id);

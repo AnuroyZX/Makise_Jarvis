@@ -97,7 +97,13 @@ function showNotesWindow(data) {
     win.show();
   }
   win.focus();
-  win.webContents.send("amadeus:notes-data", data);
+  if (win.webContents.isLoading()) {
+    win.webContents.once("did-finish-load", () => {
+      win.webContents.send("amadeus:notes-data", data);
+    });
+  } else {
+    win.webContents.send("amadeus:notes-data", data);
+  }
 }
 
 function startMouseMonitor() {
@@ -125,16 +131,19 @@ function startMouseMonitor() {
     const relX = cursor.x - bounds.x;
     const relY = cursor.y - bounds.y;
 
-    // 1. MiniDock (bottom right corner, dock width ~300px, height ~65px)
-    const inDock = (relX >= bounds.width - 320 && relY >= bounds.height - 65);
+    // 1. MiniDock (bottom right corner, dock width ~465px with all 6 buttons, height ~75px)
+    const inDock = (relX >= bounds.width - 500 && relY >= bounds.height - 85);
 
     // 2. Quick input bar: bottom area above dock
-    const inQuickBar = (interactiveState.quickBar && relY >= bounds.height - 120);
+    const inQuickBar = (interactiveState.quickBar && relY >= bounds.height - 135);
 
     // 3. Confirm card: top-left area
-    const inConfirm = (interactiveState.confirmCard && relX <= 320 && relY >= 40 && relY <= 380);
+    const inConfirm = (interactiveState.confirmCard && relX <= 360 && relY >= 20 && relY <= 420);
 
-    const isInteractive = inDock || inQuickBar || inConfirm;
+    // 4. Status / listening pill: top-left area
+    const inStatePill = (relX <= 320 && relY <= 65);
+
+    const isInteractive = inDock || inQuickBar || inConfirm || inStatePill;
     const shouldIgnore = !isInteractive;
 
     if (shouldIgnore !== lastIgnoreState) {

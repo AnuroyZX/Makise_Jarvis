@@ -1090,6 +1090,27 @@ window.sendConfirm = (approved) => {
   }
 };
 
+let turnBuffers = new Map();
+
+function flushTurnQueue(turnId) {
+  const turn = turnBuffers.get(turnId);
+  if (!turn) return;
+  turnBuffers.delete(turnId);
+  if (turn.timer) clearTimeout(turn.timer);
+
+  // Sort chunks strictly by sentence index
+  turn.chunks.sort((a, b) => a.index - b.index);
+
+  for (const c of turn.chunks) {
+    audioQueue.push(c);
+  }
+
+  // Only start playback now that the entire dialogue queue is 100% generated
+  if (!isPlayingQueue) {
+    playNextSentenceChunk();
+  }
+}
+
 async function initConnection() {
   if (!window.amadeusDesktop) return;
   const info = await window.amadeusDesktop.getConnectionInfo();
@@ -1100,69 +1121,104 @@ async function initConnection() {
   httpUrl = info.httpUrl;
   loadVrmModel(`${httpUrl}/api/avatar.vrm?token=${encodeURIComponent(info.wsToken)}&t=${Date.now()}`);
 
-  ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
-  ws.onmessage = (ev) => {
-    const msg = JSON.parse(ev.data);
-    if (msg.type === 'connected') {
-      bubblesMode = msg.bubbles_mode || 'all';
-      if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
-    } else if (msg.type === 'dsp_changed') {
-      if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
-      if (msg.bubbles_mode) bubblesMode = msg.bubbles_mode;
-    } else if (msg.type === 'character_switched') {
-      if (msg.character) {
-        if (msg.character.name) document.title = `${msg.character.name} - Amadeus`;
-        if (msg.character.dsp_preset) applyAudioDspPreset(msg.character.dsp_preset);
-      }
-    } else if (msg.type === 'reload_vrm') {
-      loadVrmModel(`${httpUrl}/api/avatar.vrm?token=${encodeURIComponent(info.wsToken)}&t=${Date.now()}`);
-    } else if (msg.type === 'avatar_pose') {
-      applyEmotion(msg.emotion);
-      triggerGesture(msg.gesture);
-      if (msg.phrase) {
-        spawnLateralDialog(msg.phrase, 3200);
-      }
-    } else if (msg.type === 'mic_transcript') {
-      spawnLateralDialog(`🗣️ Tú: "${msg.text}"`, 2600);
-    } else if (msg.type === 'interrupt') {
-      audioQueue.length = 0;
-      audioEl.pause();
-      isPlayingQueue = false;
-      clearAllLateralDialogs();
-      closeScreenNotes();
-    } else if (msg.type === 'reply_detail') {
-      if (msg.detail) {
-        showScreenNotes(msg.detail);
-      }
-    } else if (msg.type === 'reply_chunk') {
-      audioQueue.push(msg);
-      if (!isPlayingQueue) playNextSentenceChunk();
-    } else if (msg.type === 'confirm_request') {
-      pendingOpId = msg.id;
-      document.getElementById('confirmText').textContent = msg.summary;
-      document.getElementById('confirmCard').style.display = 'flex';
-      if (window.amadeusDesktop && window.amadeusDesktop.setInteractiveState) {
-        window.amadeusDesktop.setInteractiveState({ confirmCard: true });
-      }
-      triggerGesture('think');
-    } else if (msg.type === 'listening') {
-      const pill = document.getElementById('statePill');
-      const micBtn = document.getElementById('micBtn');
-      if (msg.state === 'thinking') {
-        pill.textContent = '✨ Pensando...';
-        pill.style.display = 'block';
-        if (micBtn) micBtn.textContent = '🎙️ Micro';
+  function connectWs() {
+    ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
+
+    ws.onclose = () => {
+      console.warn("Avatar WebSocket closed. Reconnecting in 1.5s...");
+      setTimeout(connectWs, 1500);
+    };
+
+    ws.onerror = (err) => {
+      console.warn("Avatar WebSocket error:", err);
+    };
+
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'connected') {
+        bubblesMode = msg.bubbles_mode || 'all';
+        if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
+      } else if (msg.type === 'dsp_changed') {
+        if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
+        if (msg.bubbles_mode) bubblesMode = msg.bubbles_mode;
+      } else if (msg.type === 'character_switched') {
+        if (msg.character) {
+          if (msg.character.name) document.title = `${msg.character.name} - Amadeus`;
+          if (msg.character.dsp_preset) applyAudioDspPreset(msg.character.dsp_preset);
+        }
+      } else if (msg.type === 'reload_vrm') {
+        loadVrmModel(`${httpUrl}/api/avatar.vrm?token=${encodeURIComponent(info.wsToken)}&t=${Date.now()}`);
+      } else if (msg.type === 'avatar_pose') {
+        applyEmotion(msg.emotion);
+        triggerGesture(msg.gesture);
+        if (msg.phrase) {
+          spawnLateralDialog(msg.phrase, 3200);
+        }
+      } else if (msg.type === 'mic_transcript') {
+        spawnLateralDialog(`🗣️ Tú: "${msg.text}"`, 2600);
+      } else if (msg.type === 'interrupt') {
+        turnBuffers.forEach((t) => {
+          if (t.timer) clearTimeout(t.timer);
+        });
+        turnBuffers.clear();
+        audioQueue.length = 0;
+        audioEl.pause();
+        isPlayingQueue = false;
+        clearAllLateralDialogs();
+        closeScreenNotes();
+      } else if (msg.type === 'reply_detail') {
+        if (msg.detail) {
+          showScreenNotes(msg.detail);
+        }
+      } else if (msg.type === 'reply_chunk') {
+        const tid = msg.turn_id || 'default';
+        if (!turnBuffers.has(tid)) {
+          turnBuffers.set(tid, {
+            chunks: [],
+            total: msg.total || 1,
+            timer: setTimeout(() => flushTurnQueue(tid), 4000)
+          });
+        }
+        const turn = turnBuffers.get(tid);
+        turn.chunks.push(msg);
+        if (msg.total) turn.total = msg.total;
+
+        // When all chunks of the turn are generated and received, flush to audioQueue!
+        if (turn.chunks.length >= turn.total) {
+          flushTurnQueue(tid);
+        }
+      } else if (msg.type === 'turn_complete') {
+        const tid = msg.turn_id || 'default';
+        flushTurnQueue(tid);
+      } else if (msg.type === 'confirm_request') {
+        pendingOpId = msg.id;
+        document.getElementById('confirmText').textContent = msg.summary;
+        document.getElementById('confirmCard').style.display = 'flex';
+        if (window.amadeusDesktop && window.amadeusDesktop.setInteractiveState) {
+          window.amadeusDesktop.setInteractiveState({ confirmCard: true });
+        }
         triggerGesture('think');
-      } else if (msg.state === 'recording') {
-        pill.textContent = '🎙️ Habla ahora... (clic en Micro para enviar)';
-        pill.style.display = 'block';
-        if (micBtn) micBtn.textContent = '🔴 Enviar';
-      } else {
-        pill.style.display = 'none';
-        if (micBtn) micBtn.textContent = '🎙️ Micro';
+      } else if (msg.type === 'listening') {
+        const pill = document.getElementById('statePill');
+        const micBtn = document.getElementById('micBtn');
+        if (msg.state === 'thinking') {
+          pill.textContent = '✨ Pensando...';
+          pill.style.display = 'block';
+          if (micBtn) micBtn.textContent = '🎙️ Micro';
+          triggerGesture('think');
+        } else if (msg.state === 'recording') {
+          pill.textContent = '🎙️ Habla ahora... (clic en Micro para enviar)';
+          pill.style.display = 'block';
+          if (micBtn) micBtn.textContent = '🔴 Enviar';
+        } else {
+          pill.style.display = 'none';
+          if (micBtn) micBtn.textContent = '🎙️ Micro';
+        }
       }
-    }
-  };
+    };
+  }
+
+  connectWs();
 
   window.amadeusDesktop.onShortcutEvent((action) => {
     if (action === 'toggle-input') {
