@@ -1429,6 +1429,9 @@ function switchSubwindow(paneId) {
   if (paneId === 'apps' && (!currentAppsList || currentAppsList.length === 0)) {
     loadApps();
   }
+  if (paneId === 'settings' || paneId === 'voice') {
+    loadState();
+  }
 }
 
 // Drawers (Off-canvas) controls
@@ -1665,12 +1668,18 @@ async function deleteCharacter(charId, name) {
 async function saveUserName() {
   const name = document.getElementById('user_display_name').value.trim();
   if (!name) return;
-  await fetch(`${baseUrl}/api/settings`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_display_name: name })
-  });
-  showToast('Nombre Guardado', `Te reconoceré como ${name}`, 'success');
+  try {
+    await fetch(`${baseUrl}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_display_name: name })
+    });
+    await loadState();
+    showToast('Nombre Guardado', `Te reconoceré como ${name}`, 'success');
+  } catch (err) {
+    console.error('Error saving user name:', err);
+    showToast('Error', 'No se pudo guardar el nombre: ' + err.message, 'danger');
+  }
 }
 
 // Voice & Audio Functions
@@ -1851,12 +1860,62 @@ function deleteCurrentSession() {
 async function saveQuickVoiceConfig() {
   const dsp = document.getElementById('dsp_preset').value;
   const engine = document.getElementById('voice_engine').value;
-  await fetch(`${baseUrl}/api/settings`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ dsp_preset: dsp, voice_engine: engine })
-  });
-  showToast('Voz y DSP Guardados', `${engine} con filtro ${dsp}`, 'success');
+  try {
+    await fetch(`${baseUrl}/api/settings`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ dsp_preset: dsp, voice_engine: engine })
+    });
+    await loadState();
+    showToast('Voz y DSP Guardados', `${engine} con filtro ${dsp}`, 'success');
+  } catch (err) {
+    console.error('Error saving voice config:', err);
+    showToast('Error', 'No se pudo guardar la voz: ' + err.message, 'danger');
+  }
+}
+
+async function loadState() {
+  if (!baseUrl) return;
+  try {
+    const r = await fetch(`${baseUrl}/api/state`);
+    const d = await r.json();
+    const coreStatus = document.getElementById('coreStatusText');
+    if (coreStatus) coreStatus.textContent = `${d.rss_mb} MB | ${d.active_provider}`;
+    const nameEl = document.getElementById('user_display_name');
+    if (nameEl) nameEl.value = d.user_display_name || '';
+    const dspEl = document.getElementById('dsp_preset');
+    if (dspEl) dspEl.value = d.dsp_preset || 'amadeus_screen';
+    const brainEl = document.getElementById('active_brain');
+    if (brainEl) brainEl.value = d.active_brain || 'auto';
+    const voiceEl = document.getElementById('voice_engine');
+    if (voiceEl) voiceEl.value = d.voice_engine || 'qwen3_kurisu';
+    const userMdEl = document.getElementById('userMdEditor');
+    if (userMdEl) userMdEl.value = d.user_md || '';
+    const visEl = document.getElementById('cloud_vision_consent');
+    if (visEl) visEl.checked = Boolean(d.cloud_vision_consent);
+    const sttEl = document.getElementById('cloud_stt_consent');
+    if (sttEl) sttEl.checked = Boolean(d.cloud_stt_consent);
+    const vrmEl = document.getElementById('vrmMsg');
+    if (vrmEl) {
+      vrmEl.textContent = d.has_vrm
+        ? '✅ Modelo avatar.vrm activo en tu escritorio.'
+        : '⚠️ Aún no hay archivo .vrm cargado.';
+    }
+    const kikiEl = document.getElementById('kikiMsg');
+    const kikiPlayer = document.getElementById('kikiPreviewAudio');
+    if (kikiEl && kikiPlayer) {
+      if (d.has_kikivoice_ref) {
+        kikiEl.textContent = '✅ Muestra KikiVoice guardada y lista.';
+        kikiPlayer.src = `${baseUrl}/api/kikivoice_ref?t=${Date.now()}`;
+        kikiPlayer.style.display = 'block';
+      } else {
+        kikiEl.textContent = 'Sube un clip .mp3 o .wav para probarlo en el Avatar 3D.';
+        kikiPlayer.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    console.error('Error loading state:', err);
+  }
 }
 
 async function saveConfig() {
@@ -1871,27 +1930,39 @@ async function saveConfig() {
   const sttEl = document.getElementById('cloud_stt_consent');
   if (sttEl) payload.cloud_stt_consent = sttEl.checked;
 
-  const r = await fetch(`${baseUrl}/api/settings`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
-  });
-  const d = await r.json();
-  for (const f of ['gemini_api_key', 'extra_api_key', 'fish_audio_api_key']) {
-    const el = document.getElementById(f);
-    if (el) el.value = '';
+  try {
+    const r = await fetch(`${baseUrl}/api/settings`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    for (const f of ['gemini_api_key', 'extra_api_key', 'fish_audio_api_key']) {
+      const el = document.getElementById(f);
+      if (el) el.value = '';
+    }
+    await loadState();
+    showToast('Ajustes Guardados', d.warning || 'Claves y cerebro aplicados inmediatamente', 'success');
+  } catch (err) {
+    console.error('Error saving config:', err);
+    showToast('Error', 'No se pudieron guardar los ajustes: ' + err.message, 'danger');
   }
-  showToast('Ajustes Guardados', d.warning || 'Claves y cerebro aplicados', 'success');
 }
 
 async function saveUserMd() {
   const content = document.getElementById('userMdEditor').value;
-  await fetch(`${baseUrl}/api/user_md`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ content })
-  });
-  showToast('Memoria Guardada', 'Perfil USER.md actualizado', 'success');
+  try {
+    await fetch(`${baseUrl}/api/user_md`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ content })
+    });
+    await loadState();
+    showToast('Memoria Guardada', 'Perfil USER.md actualizado en tiempo real', 'success');
+  } catch (err) {
+    console.error('Error saving USER.md:', err);
+    showToast('Error', 'No se pudo guardar la memoria: ' + err.message, 'danger');
+  }
 }
 
 let panelTurnBuffers = new Map();
@@ -1925,6 +1996,13 @@ async function initPanel() {
 
     function connectPanelWs() {
       ws = new WebSocket(`ws://127.0.0.1:${info.wsPort}/ws?token=${info.wsToken}`);
+
+      ws.onopen = () => {
+        requestSessions();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'get_characters' }));
+        }
+      };
 
       ws.onclose = () => {
         console.warn("Panel WebSocket closed. Reconnecting in 1.5s...");
@@ -2018,6 +2096,12 @@ async function initPanel() {
             loadCharacters();
             loadSteamStatus();
           }
+        } else if (msg.type === 'characters_list') {
+          if (msg.characters) {
+            renderCharactersGrid(msg.characters, msg.active_id);
+          }
+        } else if (msg.type === 'settings_reloaded') {
+          loadState();
         }
       };
     }
@@ -2025,51 +2109,9 @@ async function initPanel() {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       connectPanelWs();
     }
-        } else if (msg.type === 'characters_list') {
-          if (msg.characters) {
-            renderCharactersGrid(msg.characters, msg.active_id);
-          }
-        }
-      };
-      ws.onopen = () => {
-        requestSessions();
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'get_characters' }));
-        }
-      };
-    }
   }
 
-  try {
-    const r = await fetch(`${baseUrl}/api/state`);
-    const d = await r.json();
-    document.getElementById('coreStatusText').textContent = `${d.rss_mb} MB | ${d.active_provider}`;
-    document.getElementById('user_display_name').value = d.user_display_name || '';
-    document.getElementById('dsp_preset').value = d.dsp_preset || 'amadeus_screen';
-    document.getElementById('active_brain').value = d.active_brain || 'auto';
-    document.getElementById('voice_engine').value = d.voice_engine || 'qwen3_kurisu';
-    document.getElementById('userMdEditor').value = d.user_md || '';
-    const visEl = document.getElementById('cloud_vision_consent');
-    if (visEl) visEl.checked = Boolean(d.cloud_vision_consent);
-    const sttEl = document.getElementById('cloud_stt_consent');
-    if (sttEl) sttEl.checked = Boolean(d.cloud_stt_consent);
-    document.getElementById('vrmMsg').textContent = d.has_vrm
-      ? '✅ Modelo avatar.vrm activo en tu escritorio.'
-      : '⚠️ Aún no hay archivo .vrm cargado.';
-    const kikiEl = document.getElementById('kikiMsg');
-    const kikiPlayer = document.getElementById('kikiPreviewAudio');
-    if (d.has_kikivoice_ref) {
-      kikiEl.textContent = '✅ Muestra KikiVoice guardada y lista.';
-      kikiPlayer.src = `${baseUrl}/api/kikivoice_ref?t=${Date.now()}`;
-      kikiPlayer.style.display = 'block';
-    } else {
-      kikiEl.textContent = 'Sube un clip .mp3 o .wav para probarlo en el Avatar 3D.';
-      kikiPlayer.style.display = 'none';
-    }
-  } catch (err) {
-    console.error('Error loading state:', err);
-  }
-
+  await loadState();
   loadCharacters();
   loadSteamStatus();
   loadApps();

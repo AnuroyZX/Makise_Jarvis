@@ -1141,6 +1141,11 @@ async function initConnection() {
       } else if (msg.type === 'dsp_changed') {
         if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
         if (msg.bubbles_mode) bubblesMode = msg.bubbles_mode;
+      } else if (msg.type === 'settings_reloaded') {
+        if (msg.settings) {
+          if (msg.settings.dsp_preset) applyAudioDspPreset(msg.settings.dsp_preset);
+          if (msg.settings.bubbles_mode) bubblesMode = msg.settings.bubbles_mode;
+        }
       } else if (msg.type === 'character_switched') {
         if (msg.character) {
           if (msg.character.name) document.title = `${msg.character.name} - Amadeus`;

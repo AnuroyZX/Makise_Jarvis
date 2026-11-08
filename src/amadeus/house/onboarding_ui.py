@@ -550,6 +550,57 @@ class EphemeralOnboardingServer:
             })
         return pack
 
+    async def _apply_settings_reload(self) -> None:
+        """Immediately reload running subsystems with fresh configuration and notify frontends."""
+        # 1. Reset Brain HTTP client so new API keys / active brain apply immediately
+        if hasattr(self.system, "brain") and self.system.brain is not None:
+            try:
+                if hasattr(self.system.brain, "close"):
+                    await self.system.brain.close()
+                self.system.brain._client = None
+            except Exception:
+                pass
+
+        # 2. Reset Voice Engine HTTP client so new Fish / Gemini / ElevenLabs keys apply immediately
+        if hasattr(self.system, "voice") and self.system.voice is not None:
+            try:
+                if hasattr(self.system.voice, "close"):
+                    await self.system.voice.close()
+                self.system.voice._client = None
+            except Exception:
+                pass
+
+        # 3. Refresh Identity user profile and settings
+        if hasattr(self.system, "identity") and self.system.identity is not None:
+            self.system.identity.settings = self.system.settings
+
+        # 4. Broadcast live reload notification to all UI clients
+        if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
+            try:
+                await self.system.ws_bridge.broadcast(
+                    {
+                        "type": "settings_reloaded",
+                        "settings": {
+                            "active_brain": self.system.settings.active_brain,
+                            "dsp_preset": self.system.settings.dsp_preset,
+                            "voice_engine": self.system.settings.voice_engine,
+                            "user_display_name": self.system.settings.user_display_name,
+                            "cloud_vision_consent": self.system.settings.cloud_vision_consent,
+                            "cloud_stt_consent": self.system.settings.cloud_stt_consent,
+                            "bubbles_mode": self.system.settings.bubbles_mode,
+                        },
+                    }
+                )
+                await self.system.ws_bridge.broadcast(
+                    {
+                        "type": "dsp_changed",
+                        "dsp_preset": self.system.settings.dsp_preset,
+                        "bubbles_mode": self.system.settings.bubbles_mode,
+                    }
+                )
+            except Exception:
+                pass
+
     async def start(self) -> str:
         if hasattr(self.system, "ws_bridge") and self.system.ws_bridge is not None:
             self.system.ws_bridge.auth_token = self.auth_token
@@ -716,6 +767,19 @@ class EphemeralOnboardingServer:
             if hasattr(self.system, "steam") and self.system.steam is not None:
                 status = self.system.steam.get_status_dict()
             return "200 OK", "application/json", json.dumps(status).encode("utf-8")
+
+        if method == "GET" and path == "/api/settings":
+            payload = {
+                "active_brain": self.system.settings.active_brain,
+                "user_display_name": self.system.settings.user_display_name,
+                "voice_engine": self.system.settings.voice_engine,
+                "dsp_preset": self.system.settings.dsp_preset,
+                "cloud_vision_consent": self.system.settings.cloud_vision_consent,
+                "cloud_stt_consent": self.system.settings.cloud_stt_consent,
+                "bubbles_mode": self.system.settings.bubbles_mode,
+                "masked_keys": self.system.settings.masked_summary(),
+            }
+            return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
 
         if method == "GET" and path == "/api/state":
             snap = self.system.governor.snapshot()
@@ -1096,6 +1160,7 @@ class EphemeralOnboardingServer:
 
             self.system.settings.onboarding_completed = True
             self.system.settings.save(self.system.data_dir)
+            await self._apply_settings_reload()
             resp_obj: Dict[str, Any] = {"status": "saved"}
             if warning:
                 resp_obj["warning"] = warning
