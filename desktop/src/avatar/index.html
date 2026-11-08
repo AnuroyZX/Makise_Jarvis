@@ -261,9 +261,12 @@ let highpassNode = null;
 let presenceNode = null;
 let delayNode = null;
 let delayGainNode = null;
+let masterGainNode = null;
+let compressorNode = null;
 let freqData = null;
 let currentDspPreset = 'amadeus_screen';
 const audioEl = new Audio();
+audioEl.volume = 0.65;
 
 function ensureAudioGraph() {
   if (audioCtx) return;
@@ -279,6 +282,16 @@ function ensureAudioGraph() {
     delayNode = audioCtx.createDelay(0.5);
     delayGainNode = audioCtx.createGain();
 
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.value = 0.70; // Smooth non-blasting volume ceiling
+
+    compressorNode = audioCtx.createDynamicsCompressor();
+    compressorNode.threshold.value = -16;
+    compressorNode.knee.value = 8;
+    compressorNode.ratio.value = 3.5;
+    compressorNode.attack.value = 0.003;
+    compressorNode.release.value = 0.1;
+
     const mediaSource = audioCtx.createMediaElementSource(audioEl);
     mediaSource.connect(highpassNode);
     highpassNode.connect(presenceNode);
@@ -289,7 +302,9 @@ function ensureAudioGraph() {
     delayNode.connect(delayGainNode);
     delayGainNode.connect(analyser);
 
-    analyser.connect(audioCtx.destination);
+    analyser.connect(compressorNode);
+    compressorNode.connect(masterGainNode);
+    masterGainNode.connect(audioCtx.destination);
     applyAudioDspPreset(currentDspPreset);
   } catch (e) {
     console.warn("WebAudio fallback mode:", e);
@@ -532,28 +547,65 @@ function animate() {
     let headTargetX = 0;
     let headTargetZ = 0;
 
+    // Conversational Kinesics during speech: subtle expressive head/torso motion tailored to emotion
+    if (isPlayingQueue) {
+      if (currentEmotion === 'analytical' || currentEmotion === 'serious') {
+        headTargetX += Math.sin(elapsed * 4.2) * 0.024; // Subtle scholarly emphasis
+      } else if (currentEmotion === 'happy') {
+        headTargetZ += Math.sin(elapsed * 3.2) * 0.035; // Cheerful rhythm
+        headTargetX += Math.sin(elapsed * 4.2) * 0.022;
+      } else if (currentEmotion === 'smug') {
+        headTargetX -= 0.035; // Proud chin up
+      } else if (currentEmotion === 'tsundere_blush') {
+        headTargetZ -= 0.045; // Turn head slightly away
+        headTargetX += Math.sin(elapsed * 5.2) * 0.016;
+      } else {
+        headTargetX += Math.sin(elapsed * 4.0) * 0.018;
+      }
+    }
+
     if (gestureBlend > 0.001) {
       if (currentGesture === 'wave') {
-        const waveAngle = -armSign * 0.85 + Math.sin(elapsed * 12.0) * 0.28;
+        const waveAngle = -armSign * 0.88 + Math.sin(elapsed * 12.0) * 0.28;
         rArmZ = THREE.MathUtils.lerp(rArmZ, waveAngle, gestureBlend);
-        rArmX = THREE.MathUtils.lerp(rArmX, -0.2, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, -0.22, gestureBlend);
         headTargetZ = THREE.MathUtils.lerp(headTargetZ, 0.08, gestureBlend);
       } else if (currentGesture === 'nod') {
-        headTargetX = THREE.MathUtils.lerp(headTargetX, Math.sin(elapsed * 9.0) * 0.16, gestureBlend);
-      } else if (currentGesture === 'think') {
+        headTargetX = THREE.MathUtils.lerp(headTargetX, Math.sin(elapsed * 8.5) * 0.16, gestureBlend);
+      } else if (currentGesture === 'think' || currentGesture === 'lab_coat_think') {
+        // Canonical Kurisu Thinking Pose: right hand to chin, left arm supporting elbow
         headTargetZ = THREE.MathUtils.lerp(headTargetZ, 0.14, gestureBlend);
         headTargetX = THREE.MathUtils.lerp(headTargetX, 0.08, gestureBlend);
-        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.45, gestureBlend);
-        rArmX = THREE.MathUtils.lerp(rArmX, 0.65, gestureBlend);
-      } else if (currentGesture === 'point') {
-        rArmX = THREE.MathUtils.lerp(rArmX, -0.85, gestureBlend);
-        rArmZ = THREE.MathUtils.lerp(rArmZ, -armSign * 0.35, gestureBlend);
-      } else if (currentGesture === 'cross_arms') {
-        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.65, gestureBlend);
-        rArmX = THREE.MathUtils.lerp(rArmX, 0.45, gestureBlend);
-        lArmZ = THREE.MathUtils.lerp(lArmZ, -armSign * 0.65, gestureBlend);
-        lArmX = THREE.MathUtils.lerp(lArmX, 0.45, gestureBlend);
-        headTargetZ = THREE.MathUtils.lerp(headTargetZ, -0.06, gestureBlend);
+        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.38, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, 0.78, gestureBlend);
+        lArmZ = THREE.MathUtils.lerp(lArmZ, -armSign * 0.78, gestureBlend);
+        lArmX = THREE.MathUtils.lerp(lArmX, 0.35, gestureBlend);
+      } else if (currentGesture === 'point' || currentGesture === 'explain') {
+        // Pointing to explain theory with rhythmic emphasis
+        rArmX = THREE.MathUtils.lerp(rArmX, -0.88, gestureBlend);
+        rArmZ = THREE.MathUtils.lerp(rArmZ, -armSign * 0.32, gestureBlend);
+        headTargetX = THREE.MathUtils.lerp(headTargetX, 0.04, gestureBlend);
+      } else if (currentGesture === 'cross_arms' || currentGesture === 'tsundere') {
+        // Iconic Tsundere Pose: crossed arms + slight head deflection
+        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.68, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, 0.48, gestureBlend);
+        lArmZ = THREE.MathUtils.lerp(lArmZ, -armSign * 0.68, gestureBlend);
+        lArmX = THREE.MathUtils.lerp(lArmX, 0.48, gestureBlend);
+        headTargetZ = THREE.MathUtils.lerp(headTargetZ, -0.09, gestureBlend);
+      } else if (currentGesture === 'shy' || currentGesture === 'bashful') {
+        // Bashful: arms held inward, head down
+        headTargetX = THREE.MathUtils.lerp(headTargetX, 0.12, gestureBlend);
+        headTargetZ = THREE.MathUtils.lerp(headTargetZ, -0.08, gestureBlend);
+        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.98, gestureBlend);
+        lArmZ = THREE.MathUtils.lerp(lArmZ, -armSign * 0.98, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, 0.22, gestureBlend);
+        lArmX = THREE.MathUtils.lerp(lArmX, 0.22, gestureBlend);
+      } else if (currentGesture === 'smug') {
+        // Confident smirk pose
+        headTargetX = THREE.MathUtils.lerp(headTargetX, -0.06, gestureBlend);
+        headTargetZ = THREE.MathUtils.lerp(headTargetZ, 0.06, gestureBlend);
+        rArmZ = THREE.MathUtils.lerp(rArmZ, armSign * 0.72, gestureBlend);
+        rArmX = THREE.MathUtils.lerp(rArmX, 0.25, gestureBlend);
       }
     }
 
@@ -570,7 +622,7 @@ function animate() {
       head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, headTargetZ, Math.min(1.0, delta * 6.0));
     }
 
-    // 3. Gaze Tracking with Eye Microsaccades
+    // 3. Gaze Tracking with Eye Microsaccades & Emotional Aversion
     if (elapsed >= nextSaccadeTime) {
       nextSaccadeTime = elapsed + 0.8 + Math.random() * 1.5;
       saccadeOffset.set(
@@ -586,9 +638,18 @@ function animate() {
       if (headBone) headBone.getWorldPosition(headWorldPos);
       else headWorldPos.set(0, 1.35, 0);
 
+      let gazeModX = mouseNormX * 0.35 + saccadeOffset.x;
+      let gazeModY = mouseNormY * 0.25 + saccadeOffset.y;
+
+      // Tsundere emotional gaze aversion: breaks direct gaze sideways bashfully
+      if (currentEmotion === 'tsundere_blush' && Math.sin(elapsed * 1.2) > 0.3) {
+        gazeModX = -0.22 + saccadeOffset.x * 0.4;
+        gazeModY = -0.14 + saccadeOffset.y * 0.4;
+      }
+
       const desiredLookAt = new THREE.Vector3(
-        headWorldPos.x + mouseNormX * 0.35 + saccadeOffset.x,
-        headWorldPos.y + mouseNormY * 0.25 + saccadeOffset.y,
+        headWorldPos.x + gazeModX,
+        headWorldPos.y + gazeModY,
         headWorldPos.z + 1.6
       );
 
@@ -613,41 +674,70 @@ function animate() {
         if (blinkProgress >= 2.0) blinkProgress = -1;
       }
 
-      // 5. Acoustic Formant-Based Viseme Lip-Sync (F1 & F2 WebAudio Analysis)
+      // 5. Emotion-Driven Rhythmic Syllabic Speech Animation (Decoupled from loud decibels)
       if (isPlayingQueue) {
-        const bandEnergy = (bStart, bEnd) => {
-          let s = 0;
-          for (let i = bStart; i <= bEnd && i < freqData.length; i++) s += freqData[i];
-          return s / ((bEnd - bStart + 1) * 255);
-        };
+        // Natural human syllabic pace (~4.2 Hz cadence)
+        const sylFreq = 4.2;
+        const sylPhase = elapsed * Math.PI * 2.0 * sylFreq;
+        const baseSyllable = Math.sin(sylPhase);
+        const harmonicSyllable = Math.sin(sylPhase * 0.5 + 0.35) * 0.28;
+        const rawMouthOpen = Math.max(0, baseSyllable * 0.72 + harmonicSyllable);
 
-        if (analyser && freqData) {
-          analyser.getByteFrequencyData(freqData);
-          const lowF1 = bandEnergy(1, 3);     // 200 - 560 Hz
-          const midF1 = bandEnergy(4, 7);     // 560 - 1300 Hz
-          const midHighF2 = bandEnergy(8, 12); // 1300 - 2250 Hz
-          const highF2 = bandEnergy(13, 20);   // 2250 - 3750 Hz
-          const speechEnergy = (lowF1 + midF1 + midHighF2 + highF2) / 4;
+        // Maximum aperture and mouth shape tailored to Kurisu's active emotion
+        let maxAperture = 0.40;
+        let vRatioAa = 0.45;
+        let vRatioEe = 0.30;
+        let vRatioIh = 0.15;
+        let vRatioOh = 0.10;
 
-          if (speechEnergy > 0.035) {
-            targetVisemes.aa = Math.min(1.0, Math.max(0, (midF1 - 0.04) * 3.0));
-            targetVisemes.ih = Math.min(0.85, Math.max(0, (highF2 - 0.03) * 3.2));
-            targetVisemes.ou = Math.min(0.8, Math.max(0, (lowF1 - 0.04) * 2.5));
-            targetVisemes.ee = Math.min(0.75, Math.max(0, (midHighF2 - 0.03) * 2.6));
-            targetVisemes.oh = Math.min(0.75, Math.max(0, (lowF1 * 0.6 + midF1 * 0.4 - 0.04) * 2.4));
-          } else {
-            targetVisemes.aa = 0;
-            targetVisemes.ih = 0;
-            targetVisemes.ou = 0;
-            targetVisemes.ee = 0;
-            targetVisemes.oh = 0;
-          }
-        } else {
-          // Synthetic procedural speech wave fallback
-          targetVisemes.aa = Math.max(0, Math.sin(elapsed * 16.0) * 0.6);
-          targetVisemes.ih = Math.max(0, Math.cos(elapsed * 11.0) * 0.35);
-          targetVisemes.ou = Math.max(0, Math.sin(elapsed * 8.0) * 0.3);
+        if (currentEmotion === 'tsundere_blush') {
+          // Tense, bashful mouth opening; tighter articulation, small aperture
+          maxAperture = 0.28;
+          vRatioAa = 0.20;
+          vRatioEe = 0.45;
+          vRatioIh = 0.30;
+          vRatioOh = 0.05;
+        } else if (currentEmotion === 'analytical') {
+          // Measured, sharp scholarly articulation
+          maxAperture = 0.35;
+          vRatioAa = 0.35;
+          vRatioEe = 0.35;
+          vRatioIh = 0.20;
+          vRatioOh = 0.10;
+        } else if (currentEmotion === 'smug') {
+          // Maintains smirk curvature, moderate vertical opening
+          maxAperture = 0.32;
+          vRatioAa = 0.25;
+          vRatioEe = 0.50;
+          vRatioIh = 0.20;
+          vRatioOh = 0.05;
+        } else if (currentEmotion === 'serious') {
+          maxAperture = 0.36;
+          vRatioAa = 0.40;
+          vRatioEe = 0.30;
+          vRatioIh = 0.20;
+          vRatioOh = 0.10;
+        } else if (currentEmotion === 'happy') {
+          // Expressive, open
+          maxAperture = 0.52;
+          vRatioAa = 0.55;
+          vRatioEe = 0.30;
+          vRatioIh = 0.05;
+          vRatioOh = 0.10;
+        } else if (currentEmotion === 'surprised') {
+          maxAperture = 0.60;
+          vRatioAa = 0.30;
+          vRatioOh = 0.50;
+          vRatioIh = 0.05;
+          vRatioEe = 0.15;
         }
+
+        const mouthValue = rawMouthOpen * maxAperture;
+        targetVisemes.aa = mouthValue * vRatioAa;
+        targetVisemes.ee = mouthValue * vRatioEe;
+        targetVisemes.ih = mouthValue * vRatioIh;
+        targetVisemes.oh = mouthValue * vRatioOh;
+        targetVisemes.ou = mouthValue * (vRatioOh * 0.7);
       } else {
         targetVisemes.aa = 0;
         targetVisemes.ih = 0;
