@@ -24,6 +24,7 @@ from amadeus.memory.reflection import ReflectionEngine
 from amadeus.skills.skill_loader import SkillRegistry
 from amadeus.tools.file_ops import SafeFileManager
 from amadeus.tools.screen_context import ScreenContextManager
+from amadeus.tools.system_control import TimerItem, TimerManager, WindowsSystemController
 from amadeus.tools.tool_registry import AmadeusToolkit
 from amadeus.brain.tool_loop import AmadeusToolDispatcher
 from amadeus.voice.listener import WakeWordWhisperListener
@@ -114,10 +115,17 @@ class AmadeusSystem:
             settings=self.settings,
             http_client=self._shared_http,
         )
+        self.system_control = WindowsSystemController()
+        self.timer_manager = TimerManager(
+            on_tick=self._on_timer_tick,
+            on_expired=self._on_timer_expired,
+        )
         self.tool_dispatcher = AmadeusToolDispatcher(
             file_ops=self.file_ops,
             screen=self.screen,
             app_launcher=self.toolkit.app_launcher,
+            system_control=self.system_control,
+            timer_manager=self.timer_manager,
         )
         self.core.tool_dispatcher = self.tool_dispatcher
 
@@ -179,9 +187,24 @@ class AmadeusSystem:
         self.ws_bridge.interrupt_current_turn()
         await self.ws_bridge.broadcast({"type": "interrupt", "turn_id": ""})
 
+    async def _on_timer_tick(self, timer: TimerItem) -> None:
+        if hasattr(self, "ws_bridge") and self.ws_bridge is not None:
+            await self.ws_bridge.broadcast({"type": "timer_tick", "timer": timer.to_dict()})
+
+    async def _on_timer_expired(self, timer: TimerItem) -> None:
+        if hasattr(self, "ws_bridge") and self.ws_bridge is not None:
+            await self.ws_bridge.broadcast({"type": "timer_expired", "timer": timer.to_dict()})
+            # Trigger spoken confirmation
+            asyncio.create_task(
+                self.ws_bridge.process_and_stream_turn(
+                    f"[SYSTEM_EVENT] El temporizador de {timer.label} acaba de finalizar. Avisa alegremente al usuario."
+                )
+            )
+
     async def shutdown(self) -> None:
         self.telegram.stop()
         self.listener.stop()
+        self.timer_manager.stop()
         self.listener.unload_idle_models(force=True)
         await self.ws_bridge.stop()
         await self.web_ui.stop()

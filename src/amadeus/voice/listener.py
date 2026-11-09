@@ -37,7 +37,7 @@ class WakeWordWhisperListener:
         on_transcription: Optional[Callable[[str], Awaitable[None]]] = None,
         on_interrupt: Optional[Callable[[], Awaitable[None]]] = None,
         is_speaker_playing: Optional[Callable[[], bool]] = None,
-        whisper_idle_timeout_sec: float = 120.0,
+        whisper_idle_timeout_sec: float = 3600.0,
     ) -> None:
         self.settings = settings
         self.governor = governor

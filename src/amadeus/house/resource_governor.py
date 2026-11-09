@@ -27,12 +27,20 @@ class ResourceGovernor:
     """
     Module 1 (Casa): Manages CPU priority, Windows Working Set RAM trimming,
     and adaptive polling/model routing between Background Eco and Foreground Active modes.
+    Enforces a generous high-performance RAM ceiling of up to 1024 MB (1 GB) for fluid responsiveness.
     """
 
-    def __init__(self, initial_mode: PowerMode = PowerMode.BACKGROUND_ECO) -> None:
+    MAX_WORKING_SET_MB: float = 1024.0
+
+    def __init__(
+        self,
+        initial_mode: PowerMode = PowerMode.BACKGROUND_ECO,
+        max_working_set_mb: float = 1024.0,
+    ) -> None:
         self._mode: PowerMode = initial_mode
         self._process = psutil.Process(os.getpid())
         self._listeners: List[Callable[[PowerMode], None]] = []
+        self.max_working_set_mb: float = max_working_set_mb
         self._apply_os_priority(initial_mode)
 
     @property
@@ -59,7 +67,7 @@ class ResourceGovernor:
             self._mode = new_mode
             self._apply_os_priority(new_mode)
             if new_mode == PowerMode.BACKGROUND_ECO:
-                self.trim_working_set()
+                self.trim_working_set(force=True)
             for listener in self._listeners:
                 listener(new_mode)
         return self.snapshot()
@@ -76,11 +84,17 @@ class ResourceGovernor:
         except (psutil.AccessDenied, OSError):
             pass
 
-    def trim_working_set(self) -> float:
+    def trim_working_set(self, force: bool = False) -> float:
         """
         Run garbage collection and ask Windows Kernel (SetProcessWorkingSetSize)
-        to page out unused memory pages immediately. Returns current RSS in MB.
+        to page out unused memory pages. If force is False, only trims if process RSS
+        exceeds `max_working_set_mb` (1 GB) to preserve zero-latency hot models in RAM.
+        Returns current RSS in MB.
         """
+        current_rss = self.get_process_memory_mb()
+        if not force and current_rss < self.max_working_set_mb:
+            return current_rss
+
         gc.collect()
         if os.name == "nt":
             try:

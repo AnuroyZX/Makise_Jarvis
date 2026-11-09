@@ -584,6 +584,9 @@ class EphemeralOnboardingServer:
                             "cloud_vision_consent": self.system.settings.cloud_vision_consent,
                             "cloud_stt_consent": self.system.settings.cloud_stt_consent,
                             "bubbles_mode": self.system.settings.bubbles_mode,
+                            "follow_up_mode": getattr(self.system.settings, "follow_up_mode", True),
+                            "sound_effects_enabled": getattr(self.system.settings, "sound_effects_enabled", True),
+                            "visual_aura_enabled": getattr(self.system.settings, "visual_aura_enabled", True),
                         },
                     }
                 )
@@ -776,6 +779,9 @@ class EphemeralOnboardingServer:
                 "cloud_vision_consent": self.system.settings.cloud_vision_consent,
                 "cloud_stt_consent": self.system.settings.cloud_stt_consent,
                 "bubbles_mode": self.system.settings.bubbles_mode,
+                "follow_up_mode": getattr(self.system.settings, "follow_up_mode", True),
+                "sound_effects_enabled": getattr(self.system.settings, "sound_effects_enabled", True),
+                "visual_aura_enabled": getattr(self.system.settings, "visual_aura_enabled", True),
                 "masked_keys": self.system.settings.masked_summary(),
             }
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
@@ -804,6 +810,9 @@ class EphemeralOnboardingServer:
                 "bubbles_mode": self.system.settings.bubbles_mode,
                 "cloud_vision_consent": self.system.settings.cloud_vision_consent,
                 "cloud_stt_consent": self.system.settings.cloud_stt_consent,
+                "follow_up_mode": getattr(self.system.settings, "follow_up_mode", True),
+                "sound_effects_enabled": getattr(self.system.settings, "sound_effects_enabled", True),
+                "visual_aura_enabled": getattr(self.system.settings, "visual_aura_enabled", True),
                 "masked_keys": self.system.settings.masked_summary(),
             }
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
@@ -1356,6 +1365,12 @@ class EphemeralOnboardingServer:
                 self.system.settings.cloud_vision_consent = bool(data["cloud_vision_consent"])
             if "cloud_stt_consent" in data:
                 self.system.settings.cloud_stt_consent = bool(data["cloud_stt_consent"])
+            if "follow_up_mode" in data:
+                self.system.settings.follow_up_mode = bool(data["follow_up_mode"])
+            if "sound_effects_enabled" in data:
+                self.system.settings.sound_effects_enabled = bool(data["sound_effects_enabled"])
+            if "visual_aura_enabled" in data:
+                self.system.settings.visual_aura_enabled = bool(data["visual_aura_enabled"])
 
             self.system.settings.onboarding_completed = True
             self.system.settings.save(self.system.data_dir)

@@ -8,6 +8,7 @@ from amadeus.tools.app_launcher import WindowsAppLauncher
 from amadeus.tools.file_ops import PendingFileOperation, SafeFileManager
 from amadeus.tools.mail_calendar import wrap_untrusted
 from amadeus.tools.screen_context import ScreenContextManager
+from amadeus.tools.system_control import TimerItem, TimerManager, WindowsSystemController
 
 TOOL_CALL_JSON_RE = re.compile(r"\{[^{}]*\"tool\"\s*:\s*\"[^\"]+\".*\}", re.DOTALL)
 
@@ -30,10 +31,14 @@ class AmadeusToolDispatcher:
         file_ops: SafeFileManager,
         screen: ScreenContextManager,
         app_launcher: WindowsAppLauncher,
+        system_control: Optional[WindowsSystemController] = None,
+        timer_manager: Optional[TimerManager] = None,
     ) -> None:
         self.file_ops = file_ops
         self.screen = screen
         self.app_launcher = app_launcher
+        self.system_control = system_control or WindowsSystemController()
+        self.timer_manager = timer_manager or TimerManager()
         self.last_pending_operation: Optional[PendingFileOperation] = None
 
     @staticmethod
@@ -93,6 +98,99 @@ class AmadeusToolDispatcher:
         """
         clean = user_text.strip()
         lower = clean.lower()
+
+        # 0a. Volume Controls (Alexa Style)
+        if re.search(r"\b(sube|subir|aumenta|aumentar|m[aá]s)\s+(el\s+)?volumen\b", lower):
+            msg = self.system_control.volume_up()
+            return f"[emotion:happy] [gesture:nod] He subido el volumen.\n---DETALLE---\n🔊 {msg}", None
+
+        if re.search(r"\b(baja|bajar|reduce|reducir|menos)\s+(el\s+)?volumen\b", lower):
+            msg = self.system_control.volume_down()
+            return f"[emotion:neutral] [gesture:nod] He bajado el volumen.\n---DETALLE---\n🔉 {msg}", None
+
+        if re.search(r"\b(silencia|silenciar|silencio|mute|pon\s+(en\s+)?silencio|pon\s+mute|quitar\s+silencio|desactiva\s+el\s+silencio|desmutear)\b", lower):
+            msg = self.system_control.toggle_mute()
+            return f"[emotion:neutral] [gesture:nod] {msg}", None
+
+        # 0b. Media Playback Controls
+        if re.search(r"\b(pausa|pausar|para|parar|det[eé]n)\s+(la\s+)?(m[uú]sica|canci[oó]n|reproducci[oó]n|video|audio)\b", lower) or re.search(r"\b(pon\s+play|reanuda|reanudar|contin[uú]a|reproduce)\s+(la\s+)?(m[uú]sica|canci[oó]n|reproducci[oó]n|audio)\b", lower):
+            msg = self.system_control.media_play_pause()
+            return f"[emotion:happy] [gesture:nod] {msg}", None
+
+        if re.search(r"\b(siguiente|pasa|pasar|salta|saltar)\s+(la\s+)?(canci[oó]n|pista|m[uú]sica|tema)\b", lower):
+            msg = self.system_control.media_next()
+            return f"[emotion:happy] [gesture:nod] {msg}", None
+
+        if re.search(r"\b(anterior|regresa|volver|atr[aá]s)\s+(a\s+la\s+)?(canci[oó]n|pista|m[uú]sica|tema)\b", lower):
+            msg = self.system_control.media_prev()
+            return f"[emotion:neutral] [gesture:nod] {msg}", None
+
+        # 0c. Timers and Alarms
+        m_timer_create = re.search(
+            r"\b(?:pon|crea|inicia|configura|nuevo)\s+(?:un\s+)?temporizador\s+(?:de\s+)?(\d+)\s*(segundos?|minutos?|horas?|s|m|h)?(?:\s+(?:para|de)\s+(.+))?",
+            lower,
+        )
+        if m_timer_create:
+            val = int(m_timer_create.group(1))
+            unit = (m_timer_create.group(2) or "minutos").lower()
+            label_opt = (m_timer_create.group(3) or "").strip()
+            multiplier = 1
+            if "min" in unit or unit == "m":
+                multiplier = 60
+            elif "hora" in unit or unit == "h":
+                multiplier = 3600
+            total_sec = val * multiplier
+            label_desc = f"{val} {unit}"
+            if label_opt:
+                label_desc += f" para {label_opt}"
+            t_item = self.timer_manager.create_timer(total_sec, label_desc)
+            return (
+                f"[emotion:happy] [gesture:nod] Entendido. He puesto un temporizador de {label_desc}.\n---DETALLE---\n⏱️ Temporizador iniciado ({t_item.id}): {t_item.label}.",
+                None,
+            )
+
+        if re.search(r"\b(cancela|cancelar|det[eé]n|borra|elimina)\s+(el\s+)?temporizador\b", lower):
+            cancelled = self.timer_manager.cancel_timer()
+            if cancelled:
+                return f"[emotion:neutral] [gesture:nod] He cancelado tu temporizador de {cancelled.label}.", None
+            return "[emotion:serious] No tienes ningún temporizador activo en este momento.", None
+
+        if re.search(r"\b(cu[aá]nto\s+falta|c[oó]mo\s+va|tiempo\s+restante|temporizadores\s+activos)\b.*\b(temporizador|alarma)?\b", lower):
+            active_timers = self.timer_manager.list_active_timers()
+            if not active_timers:
+                return "[emotion:neutral] No hay temporizadores activos ahora mismo.", None
+            details = "\n".join(
+                f"• {t.label}: {t.remaining_seconds // 60}m {t.remaining_seconds % 60}s restantes"
+                for t in active_timers
+            )
+            return f"[emotion:analytical] [gesture:nod] Tienes {len(active_timers)} temporizador(es) en curso:\n{details}", None
+
+        # 0d. PC Telemetry & Hardware Status
+        if any(kw in lower for kw in (
+            "cómo está mi computadora", "como esta mi computadora",
+            "cómo está mi pc", "como esta mi pc",
+            "estado del sistema", "estado de mi pc",
+            "cuánta ram", "cuanta ram", "memoria ram", "ram libre",
+            "uso de cpu", "batería restante", "bateria restante"
+        )) or re.search(r"\b(cu[aá]nta\s+(memoria\s+)?ram|uso\s+de\s+(cpu|ram)|memoria\s+libre|estado\s+del\s+sistema)\b", lower):
+            telemetry = self.system_control.get_telemetry()
+            ram_pct = telemetry["ram_percent"]
+            cpu_pct = telemetry["cpu_percent"]
+            free_gb = round(telemetry["ram_free_mb"] / 1024, 2)
+            bat_str = ""
+            if telemetry["battery"]:
+                b = telemetry["battery"]
+                plug = " (Conectada)" if b["power_plugged"] else " (En batería)"
+                bat_str = f"\n🔋 Batería: {b['percent']}%{plug}"
+            reply = (
+                f"[emotion:analytical] [gesture:nod] Tu sistema opera con {cpu_pct}% de CPU y {ram_pct}% de memoria RAM ({free_gb} GB libres).{bat_str}\n"
+                f"---DETALLE---\n🖥️ Telemetría en Vivo:\n• CPU: {cpu_pct}%\n• RAM Usada: {telemetry['ram_used_mb']} MB ({ram_pct}%)\n• RAM Libre: {free_gb} GB\n• Hora del Sistema: {telemetry['time_str']}"
+            )
+            return reply, None
+
+        if re.search(r"\b(qu[eé]\s+hora\s+es|la\s+hora\s+actual|fecha\s+de\s+hoy)\b", lower):
+            telemetry = self.system_control.get_telemetry()
+            return f"[emotion:neutral] [gesture:nod] Son las {telemetry['time_str']} ({telemetry['date_str']}).", None
 
         # 1. Screen Look / Analysis
         if any(
@@ -350,6 +448,38 @@ class AmadeusToolDispatcher:
                     ),
                     None,
                 )
+
+            if name == "volume_control":
+                act = str(args.get("action", "up")).lower()
+                if act == "down":
+                    return self.system_control.volume_down(), None
+                if act == "mute":
+                    return self.system_control.toggle_mute(), None
+                return self.system_control.volume_up(), None
+
+            if name == "media_control":
+                act = str(args.get("action", "play_pause")).lower()
+                if act == "next":
+                    return self.system_control.media_next(), None
+                if act == "prev":
+                    return self.system_control.media_prev(), None
+                if act == "stop":
+                    return self.system_control.media_stop(), None
+                return self.system_control.media_play_pause(), None
+
+            if name == "timer_control":
+                act = str(args.get("action", "create")).lower()
+                if act == "cancel":
+                    c = self.timer_manager.cancel_timer(str(args.get("label", "")))
+                    return ("Temporizador cancelado." if c else "No hay temporizador activo."), None
+                secs = int(args.get("seconds", 300))
+                lbl = str(args.get("label", ""))
+                t = self.timer_manager.create_timer(secs, lbl)
+                return f"Temporizador de {secs}s iniciado ({t.id}).", None
+
+            if name == "get_telemetry":
+                telem = self.system_control.get_telemetry()
+                return json.dumps(telem, ensure_ascii=False), None
 
             return f"Herramienta desconocida: {name}", None
         except Exception as exc:

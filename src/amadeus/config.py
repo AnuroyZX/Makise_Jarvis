@@ -141,6 +141,9 @@ class AmadeusSettings:
     )
     habit_suggestions_enabled: bool = True
     controlled_apps: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    follow_up_mode: bool = True
+    sound_effects_enabled: bool = True
+    visual_aura_enabled: bool = True
 
     # Security & Privacy Consents (S1, S6)
     auth_token: str = field(default_factory=lambda: secrets.token_urlsafe(24))

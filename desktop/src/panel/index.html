@@ -1668,6 +1668,35 @@
           <button style="margin-top:12px;" onclick="saveConfig()">💾 Guardar Ajustes de Cerebro</button>
         </div>
 
+        <!-- Alexa & Meta Muse Conversational Fluency & Deep Integration -->
+        <div class="glass-card">
+          <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">Experiencia Conversacional Fluida (Estilo Alexa & Meta Muse)</span>
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+            <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; text-transform:none;">
+              <input type="checkbox" id="follow_up_mode" style="width:auto; margin-top:3px;">
+              <div>
+                <span style="font-weight:600; font-size:0.82rem; color:#f0f9ff;">Modo Conversación Continua (Follow-Up 6s)</span>
+                <div style="font-size:0.73rem; color:var(--text-muted); line-height:1.35;">Mantiene una ventana de atención auditiva durante 6 segundos tras hablar, permitiéndote responder sin volver a pulsar botones.</div>
+              </div>
+            </label>
+            <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; text-transform:none;">
+              <input type="checkbox" id="sound_effects_enabled" style="width:auto; margin-top:3px;">
+              <div>
+                <span style="font-weight:600; font-size:0.82rem; color:#f0f9ff;">Efectos Sonoros y Chimes Acústicos (Earcons)</span>
+                <div style="font-size:0.73rem; color:var(--text-muted); line-height:1.35;">Tonos WebAudio sintetizados en tiempo real (0ms de latencia, 0MB en disco) al invocar el asistente, confirmar comandos o al sonar el temporizador.</div>
+              </div>
+            </label>
+            <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; text-transform:none;">
+              <input type="checkbox" id="visual_aura_enabled" style="width:auto; margin-top:3px;">
+              <div>
+                <span style="font-weight:600; font-size:0.82rem; color:#f0f9ff;">Aura Visual Reactiva (Halo Glow)</span>
+                <div style="font-size:0.73rem; color:var(--text-muted); line-height:1.35;">Anillo luminoso en la base del avatar 3D que indica visualmente si Kurisu está escuchando (cian), pensando (púrpura), hablando (azul reactivo) o en alarma (ámbar).</div>
+              </div>
+            </label>
+          </div>
+          <button style="margin-top:12px;" onclick="saveConfig()">💾 Guardar Ajustes de Experiencia</button>
+        </div>
+
         <!-- USER.md Editor -->
         <div class="glass-card">
           <div class="card-title-row">
@@ -3045,6 +3074,12 @@ async function loadState() {
     if (visEl) visEl.checked = Boolean(d.cloud_vision_consent);
     const sttEl = document.getElementById('cloud_stt_consent');
     if (sttEl) sttEl.checked = Boolean(d.cloud_stt_consent);
+    const followUpEl = document.getElementById('follow_up_mode');
+    if (followUpEl) followUpEl.checked = d.follow_up_mode !== undefined ? Boolean(d.follow_up_mode) : true;
+    const soundFxEl = document.getElementById('sound_effects_enabled');
+    if (soundFxEl) soundFxEl.checked = d.sound_effects_enabled !== undefined ? Boolean(d.sound_effects_enabled) : true;
+    const visualAuraEl = document.getElementById('visual_aura_enabled');
+    if (visualAuraEl) visualAuraEl.checked = d.visual_aura_enabled !== undefined ? Boolean(d.visual_aura_enabled) : true;
     const vrmEl = document.getElementById('vrmMsg');
     if (vrmEl) {
       vrmEl.textContent = d.has_vrm
@@ -3106,6 +3141,12 @@ async function saveConfig() {
   if (visEl) payload.cloud_vision_consent = visEl.checked;
   const sttEl = document.getElementById('cloud_stt_consent');
   if (sttEl) payload.cloud_stt_consent = sttEl.checked;
+  const followUpEl = document.getElementById('follow_up_mode');
+  if (followUpEl) payload.follow_up_mode = followUpEl.checked;
+  const soundFxEl = document.getElementById('sound_effects_enabled');
+  if (soundFxEl) payload.sound_effects_enabled = soundFxEl.checked;
+  const visualAuraEl = document.getElementById('visual_aura_enabled');
+  if (visualAuraEl) payload.visual_aura_enabled = visualAuraEl.checked;
 
   try {
     const r = await fetch(`${baseUrl}/api/settings`, {

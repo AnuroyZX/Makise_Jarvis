@@ -188,6 +188,67 @@
   .btn-air-sm.btn-close:hover {
     background: rgba(220, 38, 38, 0.95);
   }
+  /* Reactive Aura Halo Ring underneath Kurisu */
+  #auraRingContainer {
+    position: absolute;
+    bottom: 58px;
+    right: 25px;
+    width: 300px;
+    height: 60px;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .aura-ring {
+    width: 220px;
+    height: 38px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(124, 196, 250, 0.28) 0%, rgba(47, 143, 220, 0.12) 55%, transparent 75%);
+    box-shadow: 0 0 24px rgba(124, 196, 250, 0.35);
+    transition: all 0.35s ease;
+    opacity: 0.55;
+    transform: scale(0.95);
+  }
+  .aura-ring.listening {
+    opacity: 0.95;
+    transform: scale(1.08);
+    background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.55) 0%, rgba(14, 165, 233, 0.28) 60%, transparent 80%);
+    box-shadow: 0 0 38px rgba(56, 189, 248, 0.85), inset 0 0 16px rgba(255, 255, 255, 0.6);
+    animation: auraPulse 1.2s infinite alternate ease-in-out;
+  }
+  .aura-ring.thinking {
+    opacity: 0.92;
+    transform: scale(1.04);
+    background: radial-gradient(ellipse at center, rgba(168, 85, 247, 0.55) 0%, rgba(147, 51, 234, 0.25) 60%, transparent 80%);
+    box-shadow: 0 0 40px rgba(168, 85, 247, 0.9), inset 0 0 18px rgba(236, 72, 153, 0.5);
+    animation: auraPulse 0.9s infinite alternate ease-in-out;
+  }
+  .aura-ring.speaking {
+    opacity: 0.95;
+    transform: scale(1.06);
+    background: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.50) 0%, rgba(37, 99, 235, 0.25) 60%, transparent 80%);
+    box-shadow: 0 0 35px rgba(59, 130, 246, 0.8);
+  }
+  .aura-ring.followup {
+    opacity: 0.92;
+    transform: scale(1.05);
+    background: radial-gradient(ellipse at center, rgba(20, 184, 166, 0.55) 0%, rgba(13, 148, 136, 0.25) 60%, transparent 80%);
+    box-shadow: 0 0 35px rgba(20, 184, 166, 0.85);
+    animation: auraPulse 1.4s infinite alternate ease-in-out;
+  }
+  .aura-ring.alarm {
+    opacity: 1.0;
+    transform: scale(1.15);
+    background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.65) 0%, rgba(217, 119, 6, 0.35) 60%, transparent 80%);
+    box-shadow: 0 0 48px rgba(245, 158, 11, 0.95), inset 0 0 20px rgba(254, 243, 199, 0.8);
+    animation: auraPulse 0.5s infinite alternate ease-in-out;
+  }
+  @keyframes auraPulse {
+    0% { transform: scale(0.98); opacity: 0.75; }
+    100% { transform: scale(1.12); opacity: 1.0; }
+  }
 </style>
 <script type="importmap">
 {
@@ -204,8 +265,26 @@
   <!-- Lateral Real-Time Typewriter & Self-Erasing Dialogue Stream -->
   <div id="sideDialogStream"></div>
 
+  <!-- Reactive Aura Halo Ring underneath Kurisu -->
+  <div id="auraRingContainer">
+    <div id="auraRing" class="aura-ring"></div>
+  </div>
+
   <!-- Right-side Unobstructed 3D VRM Stage -->
   <div id="stageCanvas"></div>
+
+  <!-- Timer Countdown HUD -->
+  <div id="timerHud" class="aero-glass" style="display:none; position:absolute; top:46px; left:12px; padding:6px 12px; z-index:26; align-items:center; gap:8px;">
+    <span style="color:#d97706; font-size:0.85rem;">⏱️</span>
+    <span id="timerHudLabel" style="font-weight:700; font-size:0.78rem;">Temporizador: 00:00</span>
+    <button class="btn-air-sm btn-close" onclick="cancelActiveTimer()" title="Cancelar temporizador">✕</button>
+  </div>
+
+  <!-- Follow-Up Mode Pill -->
+  <div id="followUpPill" class="aero-glass" style="display:none; position:absolute; bottom:54px; right:16px; padding:6px 12px; z-index:26; align-items:center; gap:8px;">
+    <span style="color:#0d9488; font-size:0.85rem;">👂</span>
+    <span style="font-size:0.75rem; font-weight:600;">Atenta (<span id="followUpCountdown">6s</span>)</span>
+  </div>
 
   <!-- File Operation / Script Execution Confirmation Card -->
   <div id="confirmCard" class="aero-glass">
@@ -352,6 +431,124 @@ function applyAudioDspPreset(preset) {
     delayGainNode.gain.value = 0.0;
   }
 }
+
+// Alexa & Meta Muse Responsiveness: Settings & Flags
+let followUpMode = true;
+let soundEffectsEnabled = true;
+let visualAuraEnabled = true;
+
+// Procedural Alexa/Muse WebAudio Earcons (Zero disk assets, 0ms latency)
+function playTone(freq, type, duration, startTime, gainVal = 0.14) {
+  if (!soundEffectsEnabled) return;
+  try {
+    ensureAudioGraph();
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(0.001, startTime);
+    gain.gain.linearRampToValueAtTime(gainVal, startTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  } catch (err) {
+    console.debug("Tone play error:", err);
+  }
+}
+
+function playWakeChime() {
+  if (!soundEffectsEnabled) return;
+  ensureAudioGraph();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  const now = audioCtx.currentTime;
+  playTone(523.25, 'sine', 0.20, now, 0.12);        // C5
+  playTone(783.99, 'sine', 0.28, now + 0.10, 0.15); // G5
+}
+
+function playSuccessChime() {
+  if (!soundEffectsEnabled) return;
+  ensureAudioGraph();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  const now = audioCtx.currentTime;
+  playTone(783.99, 'sine', 0.16, now, 0.12);        // G5
+  playTone(1046.50, 'sine', 0.30, now + 0.08, 0.16);// C6
+}
+
+function playTimerAlarmChime() {
+  if (!soundEffectsEnabled) return;
+  ensureAudioGraph();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  const now = audioCtx.currentTime;
+  for (let i = 0; i < 3; i++) {
+    const t = now + i * 0.40;
+    playTone(880.00, 'triangle', 0.15, t, 0.20);     // A5
+    playTone(1174.66, 'sine', 0.22, t + 0.11, 0.22);  // D6
+  }
+}
+
+// Visual Aura Ring State Manager
+function setAuraState(state) {
+  const ring = document.getElementById('auraRing');
+  const container = document.getElementById('auraRingContainer');
+  if (!ring || !container) return;
+  if (!visualAuraEnabled) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+  ring.className = `aura-ring ${state}`;
+}
+
+// Follow-Up Mode Window
+let followUpTimer = null;
+let followUpInterval = null;
+function startFollowUpWindow() {
+  clearFollowUpWindow();
+  if (!followUpMode) return;
+  const pill = document.getElementById('followUpPill');
+  const countEl = document.getElementById('followUpCountdown');
+  if (!pill || !countEl) return;
+  pill.style.display = 'flex';
+  setAuraState('followup');
+  let remaining = 6;
+  countEl.textContent = `${remaining}s`;
+
+  followUpInterval = setInterval(() => {
+    remaining -= 1;
+    if (remaining > 0) {
+      countEl.textContent = `${remaining}s`;
+    } else {
+      clearFollowUpWindow();
+    }
+  }, 1000);
+
+  followUpTimer = setTimeout(() => {
+    clearFollowUpWindow();
+  }, 6000);
+}
+
+function clearFollowUpWindow() {
+  if (followUpTimer) { clearTimeout(followUpTimer); followUpTimer = null; }
+  if (followUpInterval) { clearInterval(followUpInterval); followUpInterval = null; }
+  const pill = document.getElementById('followUpPill');
+  if (pill) pill.style.display = 'none';
+  if (!isPlayingQueue) setAuraState('idle');
+}
+
+// Timer Manager HUD Helpers
+window.cancelActiveTimer = () => {
+  const hud = document.getElementById('timerHud');
+  if (hud) hud.style.display = 'none';
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'user_text', text: 'cancela el temporizador' }));
+  }
+};
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -924,11 +1121,17 @@ function spawnLateralDialog(text, durationMs = 2400) {
 async function playNextSentenceChunk() {
   if (audioQueue.length === 0) {
     isPlayingQueue = false;
+    setAuraState('idle');
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'audio_playing', playing: false }));
     }
+    if (followUpMode) {
+      startFollowUpWindow();
+    }
     return;
   }
+  clearFollowUpWindow();
+  setAuraState('speaking');
   isPlayingQueue = true;
   const item = audioQueue.shift();
   applyEmotion(item.emotion);
@@ -1089,6 +1292,7 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.submitQuickInput = () => {
+  clearFollowUpWindow();
   const inp = document.getElementById('quickInput');
   const text = inp.value.trim();
   document.getElementById('quickInputBar').style.display = 'none';
@@ -1105,11 +1309,13 @@ document.getElementById('quickInput').addEventListener('keypress', (e) => {
 });
 
 window.toggleVoiceMic = () => {
+  clearFollowUpWindow();
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ type: 'mic_toggle' }));
 };
 
 window.toggleQuickBar = () => {
+  clearFollowUpWindow();
   const bar = document.getElementById('quickInputBar');
   const opening = bar.style.display !== 'flex';
   bar.style.display = opening ? 'flex' : 'none';
@@ -1191,6 +1397,12 @@ async function initConnection() {
       if (msg.type === 'connected') {
         bubblesMode = msg.bubbles_mode || 'all';
         if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
+        if (msg.follow_up_mode !== undefined) followUpMode = Boolean(msg.follow_up_mode);
+        if (msg.sound_effects_enabled !== undefined) soundEffectsEnabled = Boolean(msg.sound_effects_enabled);
+        if (msg.visual_aura_enabled !== undefined) {
+          visualAuraEnabled = Boolean(msg.visual_aura_enabled);
+          setAuraState('idle');
+        }
       } else if (msg.type === 'dsp_changed') {
         if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
         if (msg.bubbles_mode) bubblesMode = msg.bubbles_mode;
@@ -1198,6 +1410,12 @@ async function initConnection() {
         if (msg.settings) {
           if (msg.settings.dsp_preset) applyAudioDspPreset(msg.settings.dsp_preset);
           if (msg.settings.bubbles_mode) bubblesMode = msg.settings.bubbles_mode;
+          if (msg.settings.follow_up_mode !== undefined) followUpMode = Boolean(msg.settings.follow_up_mode);
+          if (msg.settings.sound_effects_enabled !== undefined) soundEffectsEnabled = Boolean(msg.settings.sound_effects_enabled);
+          if (msg.settings.visual_aura_enabled !== undefined) {
+            visualAuraEnabled = Boolean(msg.settings.visual_aura_enabled);
+            setAuraState('idle');
+          }
         }
       } else if (msg.type === 'character_switched') {
         if (msg.character) {
@@ -1219,6 +1437,8 @@ async function initConnection() {
       } else if (msg.type === 'mic_transcript') {
         spawnLateralDialog(`🗣️ Tú: "${msg.text}"`, 2600);
       } else if (msg.type === 'interrupt') {
+        clearFollowUpWindow();
+        setAuraState('idle');
         turnBuffers.forEach((t) => {
           if (t.timer) clearTimeout(t.timer);
         });
@@ -1232,6 +1452,37 @@ async function initConnection() {
         if (msg.detail) {
           showScreenNotes(msg.detail);
         }
+      } else if (msg.type === 'timer_started') {
+        const hud = document.getElementById('timerHud');
+        const lbl = document.getElementById('timerHudLabel');
+        if (hud && lbl) {
+          const m = Math.floor((msg.remaining_seconds || 0) / 60).toString().padStart(2, '0');
+          const s = ((msg.remaining_seconds || 0) % 60).toString().padStart(2, '0');
+          lbl.textContent = `${msg.label || 'Temporizador'}: ${m}:${s}`;
+          hud.style.display = 'flex';
+        }
+        playSuccessChime();
+        spawnLateralDialog(`⏱️ Temporizador iniciado: ${msg.label || 'Alarma'} (${msg.total_seconds}s)`, 2800);
+      } else if (msg.type === 'timer_tick') {
+        const hud = document.getElementById('timerHud');
+        const lbl = document.getElementById('timerHudLabel');
+        if (hud && lbl) {
+          const m = Math.floor((msg.remaining_seconds || 0) / 60).toString().padStart(2, '0');
+          const s = ((msg.remaining_seconds || 0) % 60).toString().padStart(2, '0');
+          lbl.textContent = `${msg.label || 'Temporizador'}: ${m}:${s}`;
+          hud.style.display = 'flex';
+        }
+      } else if (msg.type === 'timer_expired') {
+        const hud = document.getElementById('timerHud');
+        if (hud) hud.style.display = 'none';
+        setAuraState('alarm');
+        playTimerAlarmChime();
+        spawnLateralDialog(`🔔 ¡Tiempo cumplido! ${msg.label || 'Temporizador'}`, 4500);
+        setTimeout(() => { if (!isPlayingQueue) setAuraState('idle'); }, 4000);
+      } else if (msg.type === 'timer_cancelled') {
+        const hud = document.getElementById('timerHud');
+        if (hud) hud.style.display = 'none';
+        spawnLateralDialog(`⏱️ Temporizador cancelado`, 2200);
       } else if (msg.type === 'reply_chunk') {
         const tid = msg.turn_id || 'default';
         if (!turnBuffers.has(tid)) {
@@ -1264,16 +1515,22 @@ async function initConnection() {
         const pill = document.getElementById('statePill');
         const micBtn = document.getElementById('micBtn');
         if (msg.state === 'thinking') {
+          clearFollowUpWindow();
+          setAuraState('thinking');
           pill.textContent = '✨ Pensando...';
           pill.style.display = 'block';
           if (micBtn) micBtn.textContent = '🎙️ Micro';
           triggerGesture('think');
         } else if (msg.state === 'recording') {
+          clearFollowUpWindow();
+          playWakeChime();
+          setAuraState('listening');
           pill.textContent = '🎙️ Habla ahora... (clic en Micro para enviar)';
           pill.style.display = 'block';
           if (micBtn) micBtn.textContent = '🔴 Enviar';
         } else {
           pill.style.display = 'none';
+          if (!isPlayingQueue) setAuraState('idle');
           if (micBtn) micBtn.textContent = '🎙️ Micro';
         }
       }

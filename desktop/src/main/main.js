@@ -319,7 +319,7 @@ function setupSystemTray() {
 }
 
 function registerShortcuts() {
-  globalShortcut.register("CommandOrControl+Alt+Space", () => {
+  const summonKurisu = () => {
     if (!avatarWin || avatarWin.isDestroyed()) createAvatarWindow();
     avatarWin.setIgnoreMouseEvents(false);
     lastIgnoreState = false;
@@ -327,7 +327,12 @@ function registerShortcuts() {
     avatarWin.show();
     avatarWin.focus();
     avatarWin.webContents.send("amadeus:shortcut", "toggle-input");
-  });
+  };
+
+  globalShortcut.register("CommandOrControl+Alt+Space", summonKurisu);
+  try {
+    globalShortcut.register("Alt+Space", summonKurisu);
+  } catch (_) {}
   globalShortcut.register("CommandOrControl+Alt+K", () => {
     if (avatarWin && !avatarWin.isDestroyed()) {
       avatarWin.webContents.send("amadeus:shortcut", "push-to-talk");
