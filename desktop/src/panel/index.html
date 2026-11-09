@@ -1414,15 +1414,16 @@
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:8px;">
             <div>
               <label>Motor de Síntesis</label>
-              <select id="voice_engine">
-                <option value="edge">⚡ Edge-TTS Instantáneo (0 Latencia + Sin claves)</option>
+              <select id="voice_engine" onchange="toggleVoiceEngineRows()">
+                <option value="webspeech">⚡ Nativo Windows (0ms Latencia - SAPI / Chromium Speech)</option>
+                <option value="edge">🌐 Edge-TTS Neural (Dalia / Elvira / Jorge)</option>
                 <option value="qwen3_kurisu">🌟 Qwen3-TTS Makise Kurisu Oficial (ZeroGPU)</option>
                 <option value="fish">🐟 Fish Audio Oficial (KikiVoice / Clonación)</option>
                 <option value="gemini_kurisu">✨ Gemini 2.5 Flash TTS Leda</option>
               </select>
             </div>
-            <div>
-              <label>Voz Neural Base (Altavoz)</label>
+            <div id="edgeVoiceCol">
+              <label>Voz Neural Base (Edge-TTS)</label>
               <select id="edge_tts_voice">
                 <option value="es-ES-ElviraNeural">🇪🇸 Elvira (Kurisu Joven / Cálida)</option>
                 <option value="es-MX-DaliaNeural">🇲🇽 Dalia (Expresiva / Alegre)</option>
@@ -1432,6 +1433,13 @@
                 <option value="ja-JP-NanamiNeural">🇯🇵 Nanami (Japonés Anime)</option>
               </select>
             </div>
+          </div>
+
+          <div id="webSpeechVoiceRow" style="margin-top:10px;">
+            <label>Voz Local de Windows (WebSpeech 0ms)</label>
+            <select id="webspeech_voice_name">
+              <option value="">(Automática: Voz femenina/natural del sistema operativo)</option>
+            </select>
           </div>
 
           <!-- Intuitive Voice Sliders: Speed & Pitch -->
@@ -2805,6 +2813,25 @@ async function saveUserName() {
 // Voice & Audio Functions
 async function testActiveVoice() {
   const vBtn = document.getElementById('testVoiceBtn');
+  const engine = document.getElementById('voice_engine') ? document.getElementById('voice_engine').value : 'webspeech';
+
+  if (engine === 'webspeech' && 'speechSynthesis' in window) {
+    if (vBtn) vBtn.textContent = '🔊 Reproduciendo...';
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance("Hola Okabe. Soy Amadeus con voz nativa instantánea sin latencia. El Psy Kongroo.");
+    utter.lang = 'es-ES';
+    const voiceName = document.getElementById('webspeech_voice_name') ? document.getElementById('webspeech_voice_name').value : '';
+    if (voiceName) {
+      const v = window.speechSynthesis.getVoices().find(x => x.name === voiceName);
+      if (v) utter.voice = v;
+    }
+    utter.onend = () => { if (vBtn) vBtn.textContent = '🔊 Probar Voz en el Avatar 3D'; };
+    utter.onerror = () => { if (vBtn) vBtn.textContent = '🔊 Probar Voz en el Avatar 3D'; };
+    window.speechSynthesis.speak(utter);
+    showToast('WebSpeech Nativo', 'Reproduciendo voz nativa instantánea (0ms de latencia)', 'success');
+    return;
+  }
+
   if (vBtn) vBtn.textContent = '⏳ Sintetizando...';
   showToast('Prueba de Voz', 'Generando audio de prueba para el Avatar 3D', 'info');
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -3013,9 +3040,40 @@ function updatePitchLabel(val) {
   if (lbl) lbl.textContent = desc;
 }
 
+function toggleVoiceEngineRows() {
+  const engine = document.getElementById('voice_engine') ? document.getElementById('voice_engine').value : 'webspeech';
+  const edgeCol = document.getElementById('edgeVoiceCol');
+  const webRow = document.getElementById('webSpeechVoiceRow');
+  if (edgeCol) edgeCol.style.display = engine === 'edge' ? 'block' : 'none';
+  if (webRow) webRow.style.display = engine === 'webspeech' ? 'block' : 'none';
+}
+
+function populateWebSpeechVoices() {
+  if (!('speechSynthesis' in window)) return;
+  const select = document.getElementById('webspeech_voice_name');
+  if (!select) return;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices || voices.length === 0) return;
+
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">(Automática: Voz femenina/natural de Windows)</option>';
+  for (const v of voices) {
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = `${v.name} [${v.lang}]`;
+    if (v.name === currentVal) opt.selected = true;
+    select.appendChild(opt);
+  }
+}
+if ('speechSynthesis' in window) {
+  window.speechSynthesis.onvoiceschanged = populateWebSpeechVoices;
+  populateWebSpeechVoices();
+}
+
 async function saveVoiceLabSettings() {
   const engine = document.getElementById('voice_engine').value;
   const voice = document.getElementById('edge_tts_voice').value;
+  const webVoice = document.getElementById('webspeech_voice_name') ? document.getElementById('webspeech_voice_name').value : '';
   const dsp = document.getElementById('dsp_preset').value;
   const rateVal = parseInt(document.getElementById('voiceRateSlider').value, 10);
   const pitchVal = parseInt(document.getElementById('voicePitchSlider').value, 10);
@@ -3026,6 +3084,7 @@ async function saveVoiceLabSettings() {
   const payload = {
     voice_engine: engine,
     edge_tts_voice: voice,
+    webspeech_voice_name: webVoice,
     dsp_preset: dsp,
     edge_tts_rate: rateStr,
     edge_tts_pitch: pitchStr
@@ -3067,7 +3126,10 @@ async function loadState() {
     const brainEl = document.getElementById('active_brain');
     if (brainEl) brainEl.value = d.active_brain || 'auto';
     const voiceEl = document.getElementById('voice_engine');
-    if (voiceEl) voiceEl.value = d.voice_engine || 'edge';
+    if (voiceEl) voiceEl.value = d.voice_engine || 'webspeech';
+    const webVoiceEl = document.getElementById('webspeech_voice_name');
+    if (webVoiceEl && d.webspeech_voice_name !== undefined) webVoiceEl.value = d.webspeech_voice_name;
+    toggleVoiceEngineRows();
     const userMdEl = document.getElementById('userMdEditor');
     if (userMdEl) userMdEl.value = d.user_md || '';
     const visEl = document.getElementById('cloud_vision_consent');

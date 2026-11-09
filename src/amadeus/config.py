@@ -112,8 +112,11 @@ class AmadeusSettings:
     enable_whatsapp_plugin: bool = False
     whatsapp_bridge_url: str = "http://127.0.0.1:3001"
 
-    # Module 9: Voice (Fish Audio Agent + Qwen3-TTS + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
-    voice_engine: str = "auto"  # "auto" | "fish" | "qwen3_kurisu" | "gemini_kurisu" | "elevenlabs" | "edge"
+    # Module 9: Voice (WebSpeech 0ms + Fish Audio Agent + Qwen3-TTS + Gemini Kurisu TTS + ElevenLabs + Edge-TTS)
+    voice_engine: str = "auto"  # "auto" | "webspeech" | "fish" | "qwen3_kurisu" | "gemini_kurisu" | "elevenlabs" | "edge"
+    webspeech_voice_name: str = ""  # Specific Windows SAPI / Natural voice name if selected
+    webspeech_rate: float = 1.05  # Natural conversational speech rate
+    webspeech_pitch: float = 1.0  # Natural vocal pitch
     qwen3_speaker: str = "amadeus"  # "amadeus" | "kurisu" | "phone" (starrydark/Makise_Kurisu_Qwen3_TTS)
     hf_token: str = ""  # Optional free HuggingFace token (hf_...) for higher ZeroGPU quota on Qwen3-TTS
     fish_audio_api_key: str = ""

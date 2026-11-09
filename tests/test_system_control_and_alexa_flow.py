@@ -254,3 +254,51 @@ def test_resource_governor_1gb_working_set():
                 mock_set_size.return_value = 1
                 gov.trim_working_set(force=False)
                 mock_set_size.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_webspeech_engine_zero_latency_dispatch(tmp_path):
+    from amadeus.config import AmadeusSettings
+    from amadeus.house.ws_bridge import AmadeusWebSocketBridge
+
+    settings = AmadeusSettings(
+        voice_engine="webspeech",
+        webspeech_voice_name="Microsoft Sabina - Spanish (Mexico)",
+        webspeech_rate=1.1,
+    )
+    assert settings.voice_engine == "webspeech"
+    assert settings.webspeech_voice_name == "Microsoft Sabina - Spanish (Mexico)"
+
+    mock_system = MagicMock()
+    mock_system.settings = settings
+    mock_system.voice.synthesize = AsyncMock()
+
+    bridge = AmadeusWebSocketBridge(mock_system, host="127.0.0.1", port=0)
+    bridge._current_turn_id = "turn_test_1"
+    bridge._cancel_current_turn = False
+    sent_broadcasts = []
+
+    async def mock_broadcast(payload):
+        sent_broadcasts.append(payload)
+
+    bridge.broadcast = mock_broadcast
+
+    # Stream a dual reply text in webspeech mode
+    await bridge._stream_dual_reply_text(
+        "Hola Okabe. Amadeus con voz nativa lista.",
+        default_emotion="happy",
+        turn_id="turn_test_1",
+    )
+
+    # In webspeech mode, zero backend synthesis calls should occur
+    mock_system.voice.synthesize.assert_not_called()
+
+    # The broadcast should immediately contain webspeech chunks with 0ms latency
+    reply_chunks = [m for m in sent_broadcasts if m.get("type") == "reply_chunk"]
+    assert len(reply_chunks) >= 1
+    chunk = reply_chunks[0]
+    assert chunk["type"] == "reply_chunk"
+    assert chunk["provider"] == "webspeech"
+    assert chunk["audio_b64"] == ""
+    assert "Hola Okabe" in chunk["sentence"]
+

@@ -587,6 +587,9 @@ class EphemeralOnboardingServer:
                             "follow_up_mode": getattr(self.system.settings, "follow_up_mode", True),
                             "sound_effects_enabled": getattr(self.system.settings, "sound_effects_enabled", True),
                             "visual_aura_enabled": getattr(self.system.settings, "visual_aura_enabled", True),
+                            "webspeech_voice_name": getattr(self.system.settings, "webspeech_voice_name", ""),
+                            "webspeech_rate": getattr(self.system.settings, "webspeech_rate", 1.05),
+                            "webspeech_pitch": getattr(self.system.settings, "webspeech_pitch", 1.0),
                         },
                     }
                 )
@@ -782,6 +785,9 @@ class EphemeralOnboardingServer:
                 "follow_up_mode": getattr(self.system.settings, "follow_up_mode", True),
                 "sound_effects_enabled": getattr(self.system.settings, "sound_effects_enabled", True),
                 "visual_aura_enabled": getattr(self.system.settings, "visual_aura_enabled", True),
+                "webspeech_voice_name": getattr(self.system.settings, "webspeech_voice_name", ""),
+                "webspeech_rate": getattr(self.system.settings, "webspeech_rate", 1.05),
+                "webspeech_pitch": getattr(self.system.settings, "webspeech_pitch", 1.0),
                 "masked_keys": self.system.settings.masked_summary(),
             }
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
@@ -804,6 +810,9 @@ class EphemeralOnboardingServer:
                 "dsp_preset": self.system.settings.dsp_preset,
                 "profiles": self.system.profiles.list_profiles(),
                 "voice_engine": self.system.settings.voice_engine,
+                "webspeech_voice_name": getattr(self.system.settings, "webspeech_voice_name", ""),
+                "webspeech_rate": getattr(self.system.settings, "webspeech_rate", 1.05),
+                "webspeech_pitch": getattr(self.system.settings, "webspeech_pitch", 1.0),
                 "qwen3_speaker": self.system.settings.qwen3_speaker,
                 "fish_model_id": self.system.settings.fish_model_id,
                 "elevenlabs_voice_id": self.system.settings.elevenlabs_voice_id,
@@ -1371,6 +1380,18 @@ class EphemeralOnboardingServer:
                 self.system.settings.sound_effects_enabled = bool(data["sound_effects_enabled"])
             if "visual_aura_enabled" in data:
                 self.system.settings.visual_aura_enabled = bool(data["visual_aura_enabled"])
+            if "webspeech_voice_name" in data:
+                self.system.settings.webspeech_voice_name = str(data["webspeech_voice_name"]).strip()
+            if "webspeech_rate" in data:
+                try:
+                    self.system.settings.webspeech_rate = float(data["webspeech_rate"])
+                except Exception:
+                    pass
+            if "webspeech_pitch" in data:
+                try:
+                    self.system.settings.webspeech_pitch = float(data["webspeech_pitch"])
+                except Exception:
+                    pass
 
             self.system.settings.onboarding_completed = True
             self.system.settings.save(self.system.data_dir)

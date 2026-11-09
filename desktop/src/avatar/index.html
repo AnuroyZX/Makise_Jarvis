@@ -436,6 +436,57 @@ function applyAudioDspPreset(preset) {
 let followUpMode = true;
 let soundEffectsEnabled = true;
 let visualAuraEnabled = true;
+let voiceEngine = 'webspeech';
+let webSpeechVoiceName = '';
+let webSpeechRate = 1.05;
+let webSpeechPitch = 1.0;
+
+// Instant 0ms Native Speech (Windows SAPI / Chromium Web Speech API)
+function speakWithWebSpeech(cleanText, onBoundary, onEnd, onError) {
+  if (!('speechSynthesis' in window)) {
+    if (onEnd) onEnd();
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(cleanText);
+    utter.rate = webSpeechRate;
+    utter.pitch = webSpeechPitch;
+    utter.lang = 'es-ES';
+
+    const voices = window.speechSynthesis.getVoices() || [];
+    let matched = null;
+    if (webSpeechVoiceName) {
+      matched = voices.find(v => v.name === webSpeechVoiceName);
+    }
+    if (!matched) {
+      matched = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('es') && (
+        v.name.includes('Sabina') || v.name.includes('Helena') || v.name.includes('Laura') ||
+        v.name.includes('Dalia') || v.name.includes('Natural') || v.name.includes('Female')
+      ));
+    }
+    if (!matched) {
+      matched = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+    }
+    if (matched) utter.voice = matched;
+
+    utter.onboundary = (ev) => {
+      if (onBoundary) onBoundary(ev);
+    };
+    utter.onend = () => {
+      if (onEnd) onEnd();
+    };
+    utter.onerror = (err) => {
+      console.debug("WebSpeech utterance error:", err);
+      if (onError) onError(err);
+    };
+
+    window.speechSynthesis.speak(utter);
+  } catch (e) {
+    console.debug("WebSpeech invocation error:", e);
+    if (onEnd) onEnd();
+  }
+}
 
 // Procedural Alexa/Muse WebAudio Earcons (Zero disk assets, 0ms latency)
 function playTone(freq, type, duration, startTime, gainVal = 0.14) {
@@ -1158,14 +1209,44 @@ async function playNextSentenceChunk() {
     }
   };
 
-  // Case 1: No voice audio attached -> drive purely by dynamic reading typewriter
-  if (!item.audio_b64) {
-    audioFinished = true;
-    activeBubble = spawnSyncedBubble(cleanText, estimatedMs, () => {
-      typewriterFinished = true;
-      tryAdvance();
-    });
-    return;
+  // Case 1: WebSpeech 0ms Instant Native Speech Mode
+  if (item.provider === 'webspeech' || voiceEngine === 'webspeech' || !item.audio_b64) {
+    if ('speechSynthesis' in window && (item.provider === 'webspeech' || voiceEngine === 'webspeech')) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'audio_playing', playing: true }));
+      }
+      activeBubble = spawnSyncedBubble(cleanText, estimatedMs, () => {
+        typewriterFinished = true;
+        tryAdvance();
+      });
+      speakWithWebSpeech(
+        cleanText,
+        () => {
+          targetVisemes.aa = 0.42;
+          targetVisemes.ee = 0.28;
+          setTimeout(() => {
+            targetVisemes.aa = 0.05;
+            targetVisemes.ee = 0.05;
+          }, 110);
+        },
+        () => {
+          audioFinished = true;
+          tryAdvance();
+        },
+        () => {
+          audioFinished = true;
+          tryAdvance();
+        }
+      );
+      return;
+    } else {
+      audioFinished = true;
+      activeBubble = spawnSyncedBubble(cleanText, estimatedMs, () => {
+        typewriterFinished = true;
+        tryAdvance();
+      });
+      return;
+    }
   }
 
   // Case 2: Voice audio attached -> measure real duration and synchronize
@@ -1397,6 +1478,10 @@ async function initConnection() {
       if (msg.type === 'connected') {
         bubblesMode = msg.bubbles_mode || 'all';
         if (msg.dsp_preset) applyAudioDspPreset(msg.dsp_preset);
+        if (msg.voice_engine) voiceEngine = msg.voice_engine;
+        if (msg.webspeech_voice_name !== undefined) webSpeechVoiceName = msg.webspeech_voice_name;
+        if (msg.webspeech_rate !== undefined) webSpeechRate = parseFloat(msg.webspeech_rate) || 1.05;
+        if (msg.webspeech_pitch !== undefined) webSpeechPitch = parseFloat(msg.webspeech_pitch) || 1.0;
         if (msg.follow_up_mode !== undefined) followUpMode = Boolean(msg.follow_up_mode);
         if (msg.sound_effects_enabled !== undefined) soundEffectsEnabled = Boolean(msg.sound_effects_enabled);
         if (msg.visual_aura_enabled !== undefined) {
@@ -1410,6 +1495,10 @@ async function initConnection() {
         if (msg.settings) {
           if (msg.settings.dsp_preset) applyAudioDspPreset(msg.settings.dsp_preset);
           if (msg.settings.bubbles_mode) bubblesMode = msg.settings.bubbles_mode;
+          if (msg.settings.voice_engine) voiceEngine = msg.settings.voice_engine;
+          if (msg.settings.webspeech_voice_name !== undefined) webSpeechVoiceName = msg.settings.webspeech_voice_name;
+          if (msg.settings.webspeech_rate !== undefined) webSpeechRate = parseFloat(msg.settings.webspeech_rate) || 1.05;
+          if (msg.settings.webspeech_pitch !== undefined) webSpeechPitch = parseFloat(msg.settings.webspeech_pitch) || 1.0;
           if (msg.settings.follow_up_mode !== undefined) followUpMode = Boolean(msg.settings.follow_up_mode);
           if (msg.settings.sound_effects_enabled !== undefined) soundEffectsEnabled = Boolean(msg.settings.sound_effects_enabled);
           if (msg.settings.visual_aura_enabled !== undefined) {
@@ -1437,6 +1526,9 @@ async function initConnection() {
       } else if (msg.type === 'mic_transcript') {
         spawnLateralDialog(`🗣️ Tú: "${msg.text}"`, 2600);
       } else if (msg.type === 'interrupt') {
+        if ('speechSynthesis' in window) {
+          try { window.speechSynthesis.cancel(); } catch (_) {}
+        }
         clearFollowUpWindow();
         setAuraState('idle');
         turnBuffers.forEach((t) => {

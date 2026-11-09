@@ -149,6 +149,10 @@ class AmadeusWebSocketBridge:
                         "power_mode": snap.power_mode.value,
                         "bubbles_mode": self.system.settings.bubbles_mode,
                         "dsp_preset": self.system.settings.dsp_preset,
+                        "voice_engine": getattr(self.system.settings, "voice_engine", "webspeech"),
+                        "webspeech_voice_name": getattr(self.system.settings, "webspeech_voice_name", ""),
+                        "webspeech_rate": getattr(self.system.settings, "webspeech_rate", 1.05),
+                        "webspeech_pitch": getattr(self.system.settings, "webspeech_pitch", 1.0),
                         "follow_up_mode": getattr(self.system.settings, "follow_up_mode", True),
                         "sound_effects_enabled": getattr(self.system.settings, "sound_effects_enabled", True),
                         "visual_aura_enabled": getattr(self.system.settings, "visual_aura_enabled", True),
@@ -518,55 +522,75 @@ class AmadeusWebSocketBridge:
         chunks_to_send: List[Dict[str, Any]] = []
 
         if self.system.settings.voice_replies_enabled:
-            async def _synth_sentence(sent: str) -> Tuple[str, str, str]:
-                try:
-                    synth = await self.system.voice.synthesize(
-                        sent, for_telegram_opus=False, save_to_disk=False
+            engine = getattr(self.system.settings, "voice_engine", "webspeech")
+            if engine == "webspeech":
+                # WebSpeech 0ms Instant Native Speech Mode: Zero audio generation latency
+                for idx, sentence in enumerate(sentences):
+                    chunks_to_send.append(
+                        {
+                            "type": "reply_chunk",
+                            "turn_id": turn_id,
+                            "index": idx,
+                            "total": len(sentences),
+                            "sentence": sentence,
+                            "emotion": emotion_str,
+                            "gesture": dual.gesture if idx == 0 else "idle",
+                            "audio_b64": "",
+                            "mime": "text/plain",
+                            "provider": "webspeech",
+                            "voice_engine": "webspeech",
+                        }
                     )
-                    if synth.audio_bytes:
-                        b64 = base64.b64encode(synth.audio_bytes).decode("ascii")
-                        return b64, synth.mime_type, synth.provider
-                except Exception as exc:
-                    logging.getLogger("amadeus.ws_bridge").debug(
-                        "Primary voice synth error for '%s': %s", sent[:20], exc
+            else:
+                async def _synth_sentence(sent: str) -> Tuple[str, str, str]:
+                    try:
+                        synth = await self.system.voice.synthesize(
+                            sent, for_telegram_opus=False, save_to_disk=False
+                        )
+                        if synth.audio_bytes:
+                            b64 = base64.b64encode(synth.audio_bytes).decode("ascii")
+                            return b64, synth.mime_type, synth.provider
+                    except Exception as exc:
+                        logging.getLogger("amadeus.ws_bridge").debug(
+                            "Primary voice synth error for '%s': %s", sent[:20], exc
+                        )
+
+                    # Bulletproof fallback: emergency Edge-TTS synthesis so voice is never lost
+                    try:
+                        emergency_audio = await self.system.voice._call_edge_tts(sent)
+                        if emergency_audio:
+                            b64 = base64.b64encode(emergency_audio).decode("ascii")
+                            return b64, "audio/mpeg", "edge_tts_fallback"
+                    except Exception as exc:
+                        logging.getLogger("amadeus.ws_bridge").warning(
+                            "Emergency voice fallback failed for '%s': %s", sent[:20], exc
+                        )
+
+                    return "", "audio/mpeg", "silent"
+
+                synth_tasks = [_synth_sentence(s) for s in sentences]
+                synth_results = await asyncio.gather(*synth_tasks, return_exceptions=True)
+
+                for idx, (sentence, res) in enumerate(zip(sentences, synth_results)):
+                    if isinstance(res, Exception):
+                        audio_b64, mime, provider = "", "audio/mpeg", "error"
+                    else:
+                        audio_b64, mime, provider = res
+
+                    chunks_to_send.append(
+                        {
+                            "type": "reply_chunk",
+                            "turn_id": turn_id,
+                            "index": idx,
+                            "total": len(sentences),
+                            "sentence": sentence,
+                            "emotion": emotion_str,
+                            "gesture": dual.gesture if idx == 0 else "idle",
+                            "audio_b64": audio_b64,
+                            "mime": mime,
+                            "provider": provider,
+                        }
                     )
-
-                # Bulletproof fallback: emergency Edge-TTS synthesis so voice is never lost
-                try:
-                    emergency_audio = await self.system.voice._call_edge_tts(sent)
-                    if emergency_audio:
-                        b64 = base64.b64encode(emergency_audio).decode("ascii")
-                        return b64, "audio/mpeg", "edge_tts_fallback"
-                except Exception as exc:
-                    logging.getLogger("amadeus.ws_bridge").warning(
-                        "Emergency voice fallback failed for '%s': %s", sent[:20], exc
-                    )
-
-                return "", "audio/mpeg", "silent"
-
-            synth_tasks = [_synth_sentence(s) for s in sentences]
-            synth_results = await asyncio.gather(*synth_tasks, return_exceptions=True)
-
-            for idx, (sentence, res) in enumerate(zip(sentences, synth_results)):
-                if isinstance(res, Exception):
-                    audio_b64, mime, provider = "", "audio/mpeg", "error"
-                else:
-                    audio_b64, mime, provider = res
-
-                chunks_to_send.append(
-                    {
-                        "type": "reply_chunk",
-                        "turn_id": turn_id,
-                        "index": idx,
-                        "total": len(sentences),
-                        "sentence": sentence,
-                        "emotion": emotion_str,
-                        "gesture": dual.gesture if idx == 0 else "idle",
-                        "audio_b64": audio_b64,
-                        "mime": mime,
-                        "provider": provider,
-                    }
-                )
         else:
             for idx, sentence in enumerate(sentences):
                 chunks_to_send.append(
