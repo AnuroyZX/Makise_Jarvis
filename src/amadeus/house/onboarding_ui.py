@@ -590,6 +590,7 @@ class EphemeralOnboardingServer:
                             "webspeech_voice_name": getattr(self.system.settings, "webspeech_voice_name", ""),
                             "webspeech_rate": getattr(self.system.settings, "webspeech_rate", 1.05),
                             "webspeech_pitch": getattr(self.system.settings, "webspeech_pitch", 1.0),
+                            "default_weather_city": getattr(self.system.settings, "default_weather_city", ""),
                         },
                     }
                 )
@@ -788,6 +789,7 @@ class EphemeralOnboardingServer:
                 "webspeech_voice_name": getattr(self.system.settings, "webspeech_voice_name", ""),
                 "webspeech_rate": getattr(self.system.settings, "webspeech_rate", 1.05),
                 "webspeech_pitch": getattr(self.system.settings, "webspeech_pitch", 1.0),
+                "default_weather_city": getattr(self.system.settings, "default_weather_city", ""),
                 "masked_keys": self.system.settings.masked_summary(),
             }
             return "200 OK", "application/json", json.dumps(payload).encode("utf-8")
@@ -813,6 +815,7 @@ class EphemeralOnboardingServer:
                 "webspeech_voice_name": getattr(self.system.settings, "webspeech_voice_name", ""),
                 "webspeech_rate": getattr(self.system.settings, "webspeech_rate", 1.05),
                 "webspeech_pitch": getattr(self.system.settings, "webspeech_pitch", 1.0),
+                "default_weather_city": getattr(self.system.settings, "default_weather_city", ""),
                 "qwen3_speaker": self.system.settings.qwen3_speaker,
                 "fish_model_id": self.system.settings.fish_model_id,
                 "elevenlabs_voice_id": self.system.settings.elevenlabs_voice_id,
@@ -1392,6 +1395,10 @@ class EphemeralOnboardingServer:
                     self.system.settings.webspeech_pitch = float(data["webspeech_pitch"])
                 except Exception:
                     pass
+            if "default_weather_city" in data:
+                self.system.settings.default_weather_city = str(data["default_weather_city"]).strip()
+                if hasattr(self.system, "weather") and self.system.weather is not None:
+                    self.system.weather.default_city = self.system.settings.default_weather_city
 
             self.system.settings.onboarding_completed = True
             self.system.settings.save(self.system.data_dir)

@@ -97,13 +97,14 @@ class AmadeusSettings:
     honcho_app_id: str = "amadeus-kurisu"
     use_honcho_cloud: bool = True
 
-    # Module 7: Tools (Email / Calendar / Browser)
+    # Module 7: Tools (Email / Calendar / Browser / Weather)
     imap_host: str = ""
     imap_user: str = ""
     imap_password: str = ""
     smtp_host: str = ""
     caldav_url: str = ""
     browser_idle_timeout_sec: int = 120
+    default_weather_city: str = ""  # Optional city name for weather; empty for auto IP detection
 
     # Module 8: Channels (Telegram / PC Hotkey / WhatsApp)
     telegram_bot_token: str = ""

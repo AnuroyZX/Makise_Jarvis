@@ -26,6 +26,9 @@ from amadeus.tools.file_ops import SafeFileManager
 from amadeus.tools.screen_context import ScreenContextManager
 from amadeus.tools.system_control import TimerItem, TimerManager, WindowsSystemController
 from amadeus.tools.tool_registry import AmadeusToolkit
+from amadeus.tools.calculator import CalculatorTool
+from amadeus.tools.weather import WeatherTool
+from amadeus.tools.web_search import WebSearchTool
 from amadeus.brain.tool_loop import AmadeusToolDispatcher
 from amadeus.voice.listener import WakeWordWhisperListener
 from amadeus.voice.tts_engine import AmadeusVoiceEngine
@@ -120,12 +123,22 @@ class AmadeusSystem:
             on_tick=self._on_timer_tick,
             on_expired=self._on_timer_expired,
         )
+        self.weather = WeatherTool(
+            http_client=self._shared_http,
+            default_city=self.settings.default_weather_city,
+        )
+        self.web_search = WebSearchTool(http_client=self._shared_http)
+        self.calculator = CalculatorTool()
         self.tool_dispatcher = AmadeusToolDispatcher(
             file_ops=self.file_ops,
             screen=self.screen,
             app_launcher=self.toolkit.app_launcher,
             system_control=self.system_control,
             timer_manager=self.timer_manager,
+            weather=self.weather,
+            web_search=self.web_search,
+            mail_calendar=self.toolkit.mail_calendar,
+            calculator=self.calculator,
         )
         self.core.tool_dispatcher = self.tool_dispatcher
 

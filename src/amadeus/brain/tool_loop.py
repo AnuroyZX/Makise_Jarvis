@@ -5,10 +5,13 @@ import re
 from typing import Any, Dict, List, Optional
 
 from amadeus.tools.app_launcher import WindowsAppLauncher
+from amadeus.tools.calculator import CalculatorTool
 from amadeus.tools.file_ops import PendingFileOperation, SafeFileManager
-from amadeus.tools.mail_calendar import wrap_untrusted
+from amadeus.tools.mail_calendar import MailCalendarTool, wrap_untrusted
 from amadeus.tools.screen_context import ScreenContextManager
 from amadeus.tools.system_control import TimerItem, TimerManager, WindowsSystemController
+from amadeus.tools.weather import WeatherTool
+from amadeus.tools.web_search import WebSearchTool
 
 TOOL_CALL_JSON_RE = re.compile(r"\{[^{}]*\"tool\"\s*:\s*\"[^\"]+\".*\}", re.DOTALL)
 
@@ -17,10 +20,14 @@ class AmadeusToolDispatcher:
     """
     Phase F3 (Bucle de Herramientas y Acciones Naturales):
     Executes up to `max_steps` tool calls per user request across:
+      - Live zero-config Weather (`weather_query`) & Web Search (`web_search`)
+      - Calendar & Mail operations (`calendar_agenda`, `calendar_add`, `fetch_emails`)
+      - Mathematical evaluation & unit conversions (`calculate`)
+      - Hardware controls (`volume_control`, `media_control`, `timer_control`, `get_telemetry`)
       - File system tools (`fs_list`, `fs_search`, `fs_open`, `fs_create_folder`, `fs_create_file`,
         and confirmation-gated `fs_move`, `fs_rename`, `fs_delete`)
       - Screen awareness (`screen_look`)
-      - Application launching (`launch_app`)
+      - Application launching & web shortcuts (`launch_app`)
     Stops immediately if a tool produces a `PendingFileOperation` requiring user confirmation.
     """
 
@@ -33,33 +40,52 @@ class AmadeusToolDispatcher:
         app_launcher: WindowsAppLauncher,
         system_control: Optional[WindowsSystemController] = None,
         timer_manager: Optional[TimerManager] = None,
+        weather: Optional[WeatherTool] = None,
+        web_search: Optional[WebSearchTool] = None,
+        mail_calendar: Optional[MailCalendarTool] = None,
+        calculator: Optional[CalculatorTool] = None,
     ) -> None:
         self.file_ops = file_ops
         self.screen = screen
         self.app_launcher = app_launcher
         self.system_control = system_control or WindowsSystemController()
         self.timer_manager = timer_manager or TimerManager()
+        self.weather = weather or WeatherTool()
+        self.web_search = web_search or WebSearchTool()
+        self.mail_calendar = mail_calendar
+        self.calculator = calculator or CalculatorTool()
         self.last_pending_operation: Optional[PendingFileOperation] = None
 
     @staticmethod
     def build_tools_prompt_instructions() -> str:
         return (
-            "## HERRAMIENTAS DE ESCRITORIO Y ARCHIVOS (Módulo 7)\n"
-            "Si el usuario pide ejecutar una acción sobre archivos, carpetas, apps o mirar su pantalla, "
-            "puedes invocar una herramienta respondiendo con un bloque JSON:\n"
+            "## HERRAMIENTAS INTERNAS DEL SISTEMA (Módulo 7)\n"
+            "REGLA CRÍTICA: No inventes datos meteorológicos en tiempo real, telemetría de hardware, "
+            "eventos de calendario, archivos locales ni búsquedas de internet. "
+            "Si el usuario pide cualquiera de estas funciones externas, responde con un bloque JSON:\n"
             "{\"tool\": \"<nombre>\", \"args\": {...}}\n"
-            "Herramientas disponibles:\n"
+            "Herramientas internas disponibles:\n"
+            "- `weather_query`: {\"location\": \"...\"} (clima actual y pronóstico en tiempo real)\n"
+            "- `web_search`: {\"query\": \"...\"} (búsqueda en internet e información fáctica en vivo)\n"
+            "- `calculate`: {\"expression\": \"...\"} (operaciones matemáticas y conversiones)\n"
+            "- `calendar_agenda`: {} (eventos programados en el calendario local)\n"
+            "- `calendar_add`: {\"title\": \"...\", \"date\": \"YYYY-MM-DD HH:MM\"}\n"
+            "- `fetch_emails`: {\"max_count\": 5} (correos no leídos recientes)\n"
+            "- `volume_control`: {\"action\": \"up|down|mute\"}\n"
+            "- `media_control`: {\"action\": \"play_pause|next|prev|stop\"}\n"
+            "- `timer_control`: {\"action\": \"create|cancel\", \"seconds\": 300, \"label\": \"...\"}\n"
+            "- `get_telemetry`: {} (telemetría en vivo de CPU, RAM, batería y hora)\n"
+            "- `launch_app`: {\"app\": \"...\"} (aplicaciones de escritorio o webs como youtube/netflix)\n"
+            "- `screen_look`: {\"question\": \"...\"}\n"
             "- `fs_list`: {\"path\": \"...\"}\n"
             "- `fs_search`: {\"path\": \"...\", \"pattern\": \"...\"}\n"
             "- `fs_create_folder`: {\"path\": \"...\"}\n"
             "- `fs_create_file`: {\"path\": \"...\", \"content\": \"...\"}\n"
             "- `fs_open`: {\"path\": \"...\"}\n"
-            "- `execute_file`: {\"path\": \"...\", \"args\": [\"...\"]} (pide confirmación para scripts/programas)\n"
+            "- `execute_file`: {\"path\": \"...\", \"args\": [\"...\"]} (pide confirmación)\n"
             "- `fs_move`: {\"src_paths\": [\"...\"], \"dst_folder\": \"...\"} (pide confirmación)\n"
             "- `fs_rename`: {\"src_path\": \"...\", \"new_name\": \"...\"} (pide confirmación)\n"
-            "- `fs_delete`: {\"target_paths\": [\"...\"]} (envía a Papelera con confirmación)\n"
-            "- `screen_look`: {\"question\": \"...\"}\n"
-            "- `launch_app`: {\"app\": \"...\"}"
+            "- `fs_delete`: {\"target_paths\": [\"...\"]} (pide confirmación)"
         )
 
     def extract_tool_call(self, llm_output: str) -> Optional[Dict[str, Any]]:
@@ -98,6 +124,75 @@ class AmadeusToolDispatcher:
         """
         clean = user_text.strip()
         lower = clean.lower()
+
+        # 0w. Real-time Weather Gate (Alexa / Open-Meteo 0ms Intercept)
+        m_weather = re.search(
+            r"\b(?:c[oó]mo\s+est[aá]\s+el\s+clima|qu[eé]\s+tiempo\s+hace|el\s+clima|clima\s+actual|va\s+a\s+llover|temperatura\s+actual|pron[oó]stico\s+del\s+tiempo|estado\s+del\s+tiempo|weather)\b(?:\s+(?:en|de|para)\s+([a-zA-ZáéíóúñÁÉÍÓÚÑ\s\-,]+))?",
+            lower,
+        )
+        if m_weather:
+            city_target = (m_weather.group(1) or "").strip().rstrip(".?!")
+            res_weather = await self.weather.get_weather(city_target)
+            return res_weather, None
+
+        # 0m. Safe Math & Unit Conversion Gate (0ms Intercept)
+        calc_res = self.calculator.evaluate_natural_language(clean)
+        if calc_res is not None:
+            return calc_res, None
+
+        # 0s. Web Search & Factual Information Gate (DuckDuckGo Intercept)
+        m_search = re.search(
+            r"^\s*(?:por\s+favor\s+)?(?:oye\s+kurisu\s*,?\s*)?(?:busca|buscar|averigua|investiga)\s+(?:en\s+internet|en\s+la\s+web|en\s+google|en\s+duckduckgo)?\s*(.+)$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_search:
+            search_query = m_search.group(1).strip().strip("\"'.,")
+            # Don't hijack desktop file search requests
+            if not re.search(r"\b(archivo|carpeta|descargas|documentos|escritorio)\b", search_query.lower()):
+                res_search = await self.web_search.search(search_query)
+                return res_search, None
+
+        # 0cal. Calendar & Agenda Gate
+        if re.search(
+            r"\b(qu[eé]\s+(?:tengo|hay)\s+(?:en\s+la\s+|en\s+mi\s+)?agenda|mis\s+citas|agenda\s+de\s+hoy|eventos\s+de\s+hoy|tengo\s+algo\s+programado)\b",
+            lower,
+        ):
+            if self.mail_calendar is not None:
+                agenda_summary = self.mail_calendar.get_agenda_summary()
+                return (
+                    f"[emotion:analytical] [gesture:nod] He consultado tu agenda local.\n---DETALLE---\n{agenda_summary}",
+                    None,
+                )
+            return "[emotion:neutral] El calendario local no está inicializado.", None
+
+        # 0cal_add. Add calendar event
+        m_add_ev = re.search(
+            r"\b(?:agrega|a[ñn]ade|crea|guarda|nuevo)\s+(?:una\s+cita|un\s+evento|a\s+mi\s+agenda)\s+(?:para\s+el\s+)?([0-9\-\:\s\/]+)?(?:\s*\|\s*|\s+llamado\s+|\s+titulado\s+|\s+de\s+)(.+)$",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_add_ev and self.mail_calendar is not None:
+            when = (m_add_ev.group(1) or "").strip()
+            title = m_add_ev.group(2).strip()
+            if not when:
+                import datetime
+                when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            ev = self.mail_calendar.add_calendar_event(title=title, start_iso=when)
+            return (
+                f"[emotion:smug] [gesture:nod] He añadido el evento a tu agenda para [{ev.start_iso}]: {ev.title}.\n---DETALLE---\n📅 **Evento Programado**:\n• Título: {ev.title}\n• Fecha/Hora: {ev.start_iso}",
+                None,
+            )
+
+        # 0mail. Check unread emails
+        if re.search(r"\b(revisa|revisar|ver|leer|checa|checar)?\s*(?:mis\s+)?(?:correos|emails|mensajes\s+no\s+le[ií]dos)\b", lower):
+            if self.mail_calendar is not None:
+                mails = self.mail_calendar.fetch_recent_unread_emails()
+                return (
+                    f"[emotion:analytical] [gesture:nod] He revisado tu bandeja de entrada.\n---DETALLE---\n{mails}",
+                    None,
+                )
+            return "[emotion:serious] No tienes una cuenta de correo configurada en los ajustes.", None
 
         # 0a. Volume Controls (Alexa Style)
         if re.search(r"\b(sube|subir|aumenta|aumentar|m[aá]s)\s+(el\s+)?volumen\b", lower):
@@ -480,6 +575,43 @@ class AmadeusToolDispatcher:
             if name == "get_telemetry":
                 telem = self.system_control.get_telemetry()
                 return json.dumps(telem, ensure_ascii=False), None
+
+            if name == "weather_query":
+                loc = str(args.get("location") or args.get("city") or "")
+                return await self.weather.get_weather(loc), None
+
+            if name == "web_search":
+                q = str(args.get("query") or "")
+                return await self.web_search.search(q), None
+
+            if name == "calculate":
+                expr = str(args.get("expression") or "")
+                val = self.calculator.safe_calculate(expr)
+                if val is not None:
+                    return f"Resultado: {val:g}", None
+                return f"No pude evaluar la expresión matemática '{expr}'.", None
+
+            if name == "calendar_agenda":
+                if self.mail_calendar is not None:
+                    return self.mail_calendar.get_agenda_summary(), None
+                return "Calendario local no inicializado.", None
+
+            if name == "calendar_add":
+                if self.mail_calendar is not None:
+                    title = str(args.get("title") or "Nuevo evento")
+                    when = str(args.get("date") or "")
+                    if not when:
+                        import datetime
+                        when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                    ev = self.mail_calendar.add_calendar_event(title=title, start_iso=when)
+                    return f"Evento creado: [{ev.start_iso}] {ev.title}", None
+                return "Calendario local no inicializado.", None
+
+            if name == "fetch_emails":
+                if self.mail_calendar is not None:
+                    cnt = int(args.get("max_count", 5))
+                    return self.mail_calendar.fetch_recent_unread_emails(cnt), None
+                return "Módulo de correos no configurado.", None
 
             return f"Herramienta desconocida: {name}", None
         except Exception as exc:

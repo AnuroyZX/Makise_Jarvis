@@ -59,6 +59,21 @@ class WindowsAppLauncher:
         "general": "🪟",
     }
 
+    WEB_SHORTCUTS: Dict[str, tuple[str, str]] = {
+        "youtube": ("YouTube", "https://www.youtube.com"),
+        "google": ("Google", "https://www.google.com"),
+        "gmail": ("Gmail", "https://mail.google.com"),
+        "netflix": ("Netflix", "https://www.netflix.com"),
+        "spotify": ("Spotify Web", "https://open.spotify.com"),
+        "twitch": ("Twitch", "https://www.twitch.tv"),
+        "twitter": ("Twitter / X", "https://x.com"),
+        "x": ("X (Twitter)", "https://x.com"),
+        "github": ("GitHub", "https://github.com"),
+        "chatgpt": ("ChatGPT", "https://chatgpt.com"),
+        "reddit": ("Reddit", "https://www.reddit.com"),
+        "whatsapp": ("WhatsApp Web", "https://web.whatsapp.com"),
+    }
+
     @classmethod
     def guess_category(cls, name: str, path: str = "") -> str:
         text = f"{name} {path}".lower()
@@ -257,6 +272,14 @@ class WindowsAppLauncher:
         """
         app = self.find_app(app_query)
         if app is None:
+            q_clean = app_query.strip().lower()
+            if q_clean in self.WEB_SHORTCUTS:
+                svc_name, url = self.WEB_SHORTCUTS[q_clean]
+                if dry_run:
+                    return f"[Dry-Run] Abriría {svc_name} en el navegador ({url})."
+                import webbrowser
+                webbrowser.open(url)
+                return f"Abriendo {svc_name} en tu navegador web."
             return f"No encontré la aplicación '{app_query}' instalada en este PC."
 
         ctrl = controlled_settings or {}

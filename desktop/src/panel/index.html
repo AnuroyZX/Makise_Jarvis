@@ -1705,6 +1705,73 @@
           <button style="margin-top:12px;" onclick="saveConfig()">💾 Guardar Ajustes de Experiencia</button>
         </div>
 
+        <!-- Assistant Integrations & Skills (Zero-Config) -->
+        <div class="glass-card">
+          <div class="card-title-row">
+            <span style="font-size:0.88rem; font-weight:700; color:#bae6fd;">Habilidades e Integraciones del Sistema (Cero Configuración)</span>
+            <span class="badge" style="background:rgba(16, 185, 129, 0.15); color:#6ee7b7; border-color:rgba(16, 185, 129, 0.3);">✨ 100% Funcional Sin Claves</span>
+          </div>
+          <div style="font-size:0.74rem; color:var(--text-muted); line-height:1.4; margin-top:4px;">
+            Amadeus integra de fábrica servicios abiertos y controles directos de Windows. No necesitas registrarte ni configurar claves una por una.
+          </div>
+
+          <div style="margin-top:12px;">
+            <label style="font-size:0.78rem; font-weight:600; color:#e0f2fe;">Ciudad Predeterminada (Clima y Pronóstico)</label>
+            <input type="text" id="default_weather_city" placeholder="Ej: Saltillo, Madrid, Ciudad de México (deja vacío para autodetección por IP)">
+            <div style="font-size:0.71rem; color:var(--text-muted); margin-top:3px;">
+              Si lo dejas vacío, Amadeus detecta tu ciudad automáticamente usando tu ubicación IP aproximada (Open-Meteo).
+            </div>
+          </div>
+
+          <!-- Status Grid of Built-in Integrations -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:12px;">
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.1rem;">🌦️</span>
+              <div>
+                <div style="font-size:0.77rem; font-weight:600; color:#f0f9ff;">Clima en Tiempo Real</div>
+                <div style="font-size:0.69rem; color:#6ee7b7;">Activo • Open-Meteo (Sin Clave)</div>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.1rem;">🔍</span>
+              <div>
+                <div style="font-size:0.77rem; font-weight:600; color:#f0f9ff;">Búsqueda Web e Información</div>
+                <div style="font-size:0.69rem; color:#6ee7b7;">Activo • DuckDuckGo Instant (Sin Clave)</div>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.1rem;">⏱️</span>
+              <div>
+                <div style="font-size:0.77rem; font-weight:600; color:#f0f9ff;">Temporizadores y Alarmas</div>
+                <div style="font-size:0.69rem; color:#6ee7b7;">Activo • Bucle Nativo con Alarma</div>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.1rem;">🔊</span>
+              <div>
+                <div style="font-size:0.77rem; font-weight:600; color:#f0f9ff;">Volumen y Multimedia</div>
+                <div style="font-size:0.69rem; color:#6ee7b7;">Activo • Teclas de Hardware Windows</div>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.1rem;">🧮</span>
+              <div>
+                <div style="font-size:0.77rem; font-weight:600; color:#f0f9ff;">Calculadora y Conversiones</div>
+                <div style="font-size:0.69rem; color:#6ee7b7;">Activo • Aritmética y Unidades Seguras</div>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass-subtle); border-radius:var(--radius-sm); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.1rem;">🌐</span>
+              <div>
+                <div style="font-size:0.77rem; font-weight:600; color:#f0f9ff;">Apps y Accesos Web</div>
+                <div style="font-size:0.69rem; color:#6ee7b7;">Activo • Ejecutables + YouTube/Netflix/Web</div>
+              </div>
+            </div>
+          </div>
+
+          <button style="margin-top:12px;" onclick="saveConfig()">💾 Guardar Ajustes de Integraciones</button>
+        </div>
+
         <!-- USER.md Editor -->
         <div class="glass-card">
           <div class="card-title-row">
@@ -3142,6 +3209,8 @@ async function loadState() {
     if (soundFxEl) soundFxEl.checked = d.sound_effects_enabled !== undefined ? Boolean(d.sound_effects_enabled) : true;
     const visualAuraEl = document.getElementById('visual_aura_enabled');
     if (visualAuraEl) visualAuraEl.checked = d.visual_aura_enabled !== undefined ? Boolean(d.visual_aura_enabled) : true;
+    const weatherCityEl = document.getElementById('default_weather_city');
+    if (weatherCityEl && d.default_weather_city !== undefined) weatherCityEl.value = d.default_weather_city;
     const vrmEl = document.getElementById('vrmMsg');
     if (vrmEl) {
       vrmEl.textContent = d.has_vrm
@@ -3209,6 +3278,8 @@ async function saveConfig() {
   if (soundFxEl) payload.sound_effects_enabled = soundFxEl.checked;
   const visualAuraEl = document.getElementById('visual_aura_enabled');
   if (visualAuraEl) payload.visual_aura_enabled = visualAuraEl.checked;
+  const weatherCityEl = document.getElementById('default_weather_city');
+  if (weatherCityEl) payload.default_weather_city = weatherCityEl.value.trim();
 
   try {
     const r = await fetch(`${baseUrl}/api/settings`, {
